@@ -3,6 +3,8 @@
 SwiftShader Documentation
 =========================
 
+English | [中文](Index.zh.md)
+
 SwiftShader provides high-performance graphics rendering on the CPU. It eliminates the dependency on graphics hardware capabilities.
 
 Architecture
