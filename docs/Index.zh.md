@@ -37,7 +37,7 @@ JIT 层是运行时编译器，例如 [LLVM](http://llvm.org/) 的 JIT，或 [Su
 
 我们将由 Reactor 代码生成的函数称为 [Routine](../src/Reactor/Routine.hpp)。
 
-关于 Reactor 的更多细节，请参见 [Reactor.md](Reactor.md)。
+关于 Reactor 的更多细节，请参见 [Reactor.zh.md](Reactor.zh.md)。
 
 ### Renderer
 

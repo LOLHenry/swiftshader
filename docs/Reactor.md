@@ -1,6 +1,8 @@
 Reactor Documentation
 =====================
 
+English | [中文](Reactor.zh.md)
+
 Reactor is an embedded language for C++ to facilitate dynamic code generation and specialization.
 
 Introduction
