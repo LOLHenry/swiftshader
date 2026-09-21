@@ -1,6 +1,8 @@
 Runtime Configuration
 =========================
 
+English | [中文](RuntimeConfiguration.zh.md)
+
 SwiftShader provides a simple configuration mechanism based on a configuration file to control a variety of runtime options without needing to re-compile from source.
 
 Configuration file

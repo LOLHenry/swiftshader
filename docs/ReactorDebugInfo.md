@@ -1,5 +1,7 @@
 # Reactor Debug Info Generation
 
+English | [中文](ReactorDebugInfo.zh.md)
+
 ## Introduction
 
 Reactor produces Just In Time compiled dynamic executable code and can be used to JIT high performance functions specialized for runtime

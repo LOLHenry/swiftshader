@@ -1,6 +1,8 @@
 Subzero Documentation
 =====================
 
+English | [中文](Subzero.zh.md)
+
 Subzero is a JIT compiler used as a back-end for [Reactor](Reactor.md). It originates from Chrome's [Portable Native Client](https://developer.chrome.com/native-client) project. Its authoritative repository is at [https://chromium.googlesource.com/native_client/pnacl-subzero/](https://chromium.googlesource.com/native_client/pnacl-subzero/).
 
 Subzero for SwiftShader

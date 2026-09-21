@@ -1,5 +1,7 @@
 # Vulkan Timeline Semaphores
 
+English | [中文](TimelineSemaphores.zh.md)
+
 [Vulkan Timeline
 Semaphores](https://www.khronos.org/blog/vulkan-timeline-semaphores) are a
 synchronization primitive accessible both from the device and the host. A

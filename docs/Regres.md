@@ -1,5 +1,7 @@
 # Regres - SwiftShader automated testing
 
+English | [中文](Regres.zh.md)
+
 ## Introduction
 
 Regres is a collection of tools to perform [dEQP](https://github.com/KhronosGroup/VK-GL-CTS)

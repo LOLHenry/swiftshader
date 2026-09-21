@@ -1,6 +1,8 @@
 LLVM Dependency
 ===============
 
+English | [中文](LLVM.zh.md)
+
 Overview
 --------
 

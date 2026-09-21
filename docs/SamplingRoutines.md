@@ -1,6 +1,8 @@
 Sampling Routines
 =================
 
+English | [中文](SamplingRoutines.zh.md)
+
 Introduction
 ------------
 

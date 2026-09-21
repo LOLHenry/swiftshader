@@ -1,5 +1,7 @@
 # Vulkan Shader Debugging
 
+English | [中文](VulkanShaderDebugging.zh.md)
+
 SwiftShader implements a Vulkan shader debugger that uses the [Debug Adapter Protocol](https://microsoft.github.io/debug-adapter-protocol).
 
 This debugger is still actively being developed. Please see the [Known Issues](#Known-Issues).

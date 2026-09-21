@@ -24,7 +24,7 @@ Renderer 层为绘制调用生成专用处理例程，并协调渲染任务的�
 
 Reactor 是嵌入 C++ 中的一种语言，用于以所见即所得（WYSIWYG）的方式动态生成代码。它可以根据每次绘制调用所用的状态和着色器来特化处理例程。其语法与 C 及着色语言非常接近，使代码生成过程易于阅读。
 
-JIT 层是运行时编译器，例如 [LLVM](http://llvm.org/) 的 JIT，或 [Subzero](Subzero.md)。Reactor 将其操作记录为内存中的中间表示，随后由 JIT 物化为可直接调用的函数。
+JIT 层是运行时编译器，例如 [LLVM](LLVM.zh.md) 的 JIT，或 [Subzero](Subzero.zh.md)。Reactor 将其操作记录为内存中的中间表示，随后由 JIT 物化为可直接调用的函数。
 
 设计
 ----

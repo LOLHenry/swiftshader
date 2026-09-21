@@ -1,6 +1,8 @@
 dEQP
 ====
 
+English | [中文](dEQP.zh.md)
+
 These steps are specifically for testing SwiftShader's Vulkan implementation using dEQP on Windows (steps for Linux below the Windows instructions).
 
 Prerequisites
