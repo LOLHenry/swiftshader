@@ -70,5 +70,5 @@ Other documents
 
 A Chinese guide to software-rendering optimization (x86 history, ARM / redroid recommendations, and a glossary) is in [SoftwareRenderingOptimization.zh.md](SoftwareRenderingOptimization.zh.md).
 
-Chinese flow diagrams of the Mesa LLVMpipe / Lavapipe render and `perf` analysis paths are in [LLVMpipeWorkflow.zh.md](LLVMpipeWorkflow.zh.md).
+Chinese flow diagrams of SwiftShader's own draw pipeline are in [Pipeline.zh.md](Pipeline.zh.md). Mesa LLVMpipe is an unrelated peer rasterizer (not used by this tree); that comparison is in [LLVMpipeWorkflow.zh.md](LLVMpipeWorkflow.zh.md).
 

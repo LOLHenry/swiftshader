@@ -70,4 +70,4 @@ GLSL 编译器实现于 [src/OpenGL/compiler/](../src/OpenGL/compiler/)。它使
 
 面向非图形专业读者的软渲染说明（x86 优化背景、ARM / redroid 方案、术语表）见 [SoftwareRenderingOptimization.zh.md](SoftwareRenderingOptimization.zh.md)。
 
-Mesa LLVMpipe / Lavapipe 的渲染与 `perf` 剖析流图见 [LLVMpipeWorkflow.zh.md](LLVMpipeWorkflow.zh.md)。
+本仓库自己的绘制管线流图见 [Pipeline.zh.md](Pipeline.zh.md)。Mesa LLVMpipe 与 SwiftShader 无代码关系，仅作业界对照，见 [LLVMpipeWorkflow.zh.md](LLVMpipeWorkflow.zh.md)。

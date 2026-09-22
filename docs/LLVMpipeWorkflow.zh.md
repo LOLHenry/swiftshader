@@ -1,10 +1,10 @@
-# Mesa LLVMpipe / Lavapipe 工作流图
+# Mesa LLVMpipe / Lavapipe 工作流图（业界对照，不是本仓库）
 
-面向非图形专业读者。说明业界软渲染里常说的 **pipe** 是什么、一帧怎么走完、JIT 机器码怎么生成，以及怎样用 `perf` 把匿名可执行热点拆开。
+**SwiftShader 不包含、也不调用 Mesa。** 你的 redroid / `vulkan.pastel` 路径见 [Pipeline.zh.md](Pipeline.zh.md)。
 
-对应英文官方说明：[Mesa LLVMpipe](https://docs.mesa3d.org/drivers/llvmpipe.html)。本文只画工作流，不替代 Mesa 手册。
+本文只回答「业界另一套 CPU 软光栅怎么做 JIT 剖析」。上次把「pipe」画成 Mesa，是因为它和 SwiftShader 同类（状态特化 + LLVM JIT），不是因为优化 SwiftShader 要改 Mesa。
 
-和 SwiftShader 的对照见文末，以及 [SoftwareRenderingOptimization.zh.md](SoftwareRenderingOptimization.zh.md)。
+对应英文官方说明：[Mesa LLVMpipe](https://docs.mesa3d.org/drivers/llvmpipe.html)。
 
 ---
 
