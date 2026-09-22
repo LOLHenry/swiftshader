@@ -407,6 +407,7 @@ AffinityPolicy=one
 | [Reactor.zh.md](Reactor.zh.md) | **改 SwiftShader 的人** 怎么写 `Float` / `If()`；应用开发者不用读语法章节 |
 | [LLVM.zh.md](LLVM.zh.md) / [Subzero.zh.md](Subzero.zh.md) | 两个 JIT 后端；ARM64 用 LLVM |
 | [RuntimeConfiguration.zh.md](RuntimeConfiguration.zh.md) | `SwiftShader.ini` 语法 |
+| [LLVMpipeWorkflow.zh.md](LLVMpipeWorkflow.zh.md) | Mesa LLVMpipe / Lavapipe 渲染与 `perf` 剖析流图（业界对照） |
 | 本文 | 软渲染背景、x86 优化史、ARM/redroid 方案 |
 
 ---

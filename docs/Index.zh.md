@@ -69,3 +69,5 @@ GLSL 编译器实现于 [src/OpenGL/compiler/](../src/OpenGL/compiler/)。它使
 --------
 
 面向非图形专业读者的软渲染说明（x86 优化背景、ARM / redroid 方案、术语表）见 [SoftwareRenderingOptimization.zh.md](SoftwareRenderingOptimization.zh.md)。
+
+Mesa LLVMpipe / Lavapipe 的渲染与 `perf` 剖析流图见 [LLVMpipeWorkflow.zh.md](LLVMpipeWorkflow.zh.md)。

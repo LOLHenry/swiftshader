@@ -70,3 +70,5 @@ Other documents
 
 A Chinese guide to software-rendering optimization (x86 history, ARM / redroid recommendations, and a glossary) is in [SoftwareRenderingOptimization.zh.md](SoftwareRenderingOptimization.zh.md).
 
+Chinese flow diagrams of the Mesa LLVMpipe / Lavapipe render and `perf` analysis paths are in [LLVMpipeWorkflow.zh.md](LLVMpipeWorkflow.zh.md).
+
