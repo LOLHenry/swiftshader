@@ -1,5 +1,7 @@
 > :warning: **内容可能过时**
 
+当前 `src/` 分层（Vulkan ICD，已无 OpenGL ES）见 **[src-architecture/](src-architecture/README.md)**。
+
 SwiftShader 文档
 ================
 
