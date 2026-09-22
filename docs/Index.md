@@ -65,3 +65,8 @@ The [EGL](https://www.khronos.org/registry/egl/specs/eglspec.1.4.20110406.pdf) A
 
 When the application calls an OpenGL function, it lands in the C entry functions at [main.cpp](../src/OpenGL/libGLESv2/main.cpp). It then gets dispatched to [libGLESv2.cpp](../src/OpenGL/libGLESv2/libGLESv2.cpp) functions in the es2 namespace. These functions obtain the thread's OpenGL context, and perform validation of the call's parameters. Most functions then call a corresponding [Context](../src/OpenGL/libGLESv2/Context.h) method to perform the call's main operations (changing state or queuing a draw task).
 
+Other documents
+---------------
+
+A Chinese guide to software-rendering optimization (x86 history, ARM / redroid recommendations, and a glossary) is in [SoftwareRenderingOptimization.zh.md](SoftwareRenderingOptimization.zh.md).
+

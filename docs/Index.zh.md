@@ -64,3 +64,8 @@ GLSL 编译器实现于 [src/OpenGL/compiler/](../src/OpenGL/compiler/)。它使
 [OpenGL ES 2.0](https://www.khronos.org/registry/gles/specs/2.0/es_full_spec_2.0.25.pdf) 实现于 [src/OpenGL/libGLESv2/](../src/OpenGL/libGLESv2/)。需要注意的是，虽然 [OpenGL ES 3.0](https://www.khronos.org/registry/gles/specs/3.0/es_spec_3.0.0.pdf) 函数实现于 [libGLESv3.cpp](../src/OpenGL/libGLESv2/libGLESv3.cpp)，但它们会被编译进 libGLESv2 库，这与大多数实现的惯例一致（部分平台上 libGLESv3 会符号链接到 libGLESv2）。本文档将重点介绍 OpenGL ES 2.0。
 
 当应用程序调用 OpenGL 函数时，会进入 [main.cpp](../src/OpenGL/libGLESv2/main.cpp) 中的 C 入口函数，随后分发到 [libGLESv2.cpp](../src/OpenGL/libGLESv2/libGLESv2.cpp) 中 `es2` 命名空间下的函数。这些函数获取当前线程的 OpenGL 上下文，并对调用参数进行校验。大多数函数随后会调用对应的 [Context](../src/OpenGL/libGLESv2/Context.h) 方法来执行该调用的主要操作（修改状态或将绘制任务入队）。
+
+其他文档
+--------
+
+面向非图形专业读者的软渲染说明（x86 优化背景、ARM / redroid 方案、术语表）见 [SoftwareRenderingOptimization.zh.md](SoftwareRenderingOptimization.zh.md)。
