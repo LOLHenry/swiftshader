@@ -72,6 +72,8 @@ Android 12 以后，常见路径是：
 
 中间每一层都有开销。极致帧率要同时看：**少画一些像素、少合成一些层、让最底层 SwiftShader 算得更快、别让 N 个容器把 CPU 抢光**。
 
+进到 SwiftShader 之后，一次绘制是 **顶点例程 → 图元装配例程 → 按 cluster 跑像素例程（2×2 quad）**，三份函数都按当前状态 JIT。流图见 [Pipeline.zh.md](Pipeline.zh.md)。这和 Mesa 的 Gallium pipe **不是同一条链**。
+
 ---
 
 ## 3. 术语表：这些名字是什么、有什么特点
@@ -404,9 +406,11 @@ AffinityPolicy=one
 | 文档 | 给谁看 |
 |------|--------|
 | [Index.zh.md](Index.zh.md) | SwiftShader 四层架构（API / Renderer / Reactor / JIT） |
+| [Pipeline.zh.md](Pipeline.zh.md) | **本仓库** 一次 `vkCmdDraw` 怎么走到像素（流图） |
 | [Reactor.zh.md](Reactor.zh.md) | **改 SwiftShader 的人** 怎么写 `Float` / `If()`；应用开发者不用读语法章节 |
 | [LLVM.zh.md](LLVM.zh.md) / [Subzero.zh.md](Subzero.zh.md) | 两个 JIT 后端；ARM64 用 LLVM |
 | [RuntimeConfiguration.zh.md](RuntimeConfiguration.zh.md) | `SwiftShader.ini` 语法 |
+| [LLVMpipeWorkflow.zh.md](LLVMpipeWorkflow.zh.md) | Mesa 另一套 CPU 光栅，**不是** SwiftShader 的模块；只对照 JIT 剖析 |
 | 本文 | 软渲染背景、x86 优化史、ARM/redroid 方案 |
 
 ---
