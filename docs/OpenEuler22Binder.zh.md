@@ -194,18 +194,24 @@ CONFIG_ASHMEM=y
 - 不要 `git checkout origin/openeuler2003` 去编 [redroid-modules](https://github.com/remote-android/redroid-modules)。那一支是 **openEuler 20.03 / Linux 4.19**。
 - 不要从别的内核版本拷 `.ko` 过来。
 
-先看磁盘。根分区满时，`dnf` 装不上 `kernel-devel`，脚本在 `/root` 下建目录也会失败。可用空间建议至少 1 吉字节：
+先看磁盘。现场常见情况是：根分区 `/`（例如 69 吉字节）被 Docker 的 `/var/lib/docker` 占满，`/home` 却还有上百吉字节。工作目录应写到 `/home`，但 `kernel-devel` 仍要装进根分区的 `/usr` 和 `/lib`，**只改工作目录不够**，必须先给 `/` 腾出至少约 1 吉字节。
 
 ```bash
 df -hT
-# 根分区不够时，先清缓存，或把工作目录放到还有空位的盘：
+sudo du -xhd1 / | sort -h
+sudo docker system df
+# 安全清理：软件包缓存、日志、悬空镜像。不要删正在跑的容器。
 sudo dnf clean all
 sudo rm -rf /var/cache/dnf/*
 sudo journalctl --vacuum-size=80M
-WORK=/data/redroid-binder-build sudo -E bash scripts/redroid_4u8g_stopwatch/build_host_binder.sh
+sudo docker image prune -f
+sudo docker builder prune -f
+df -hT /
+# 根分区有空位之后：
+WORK=/home/redroid-binder-build sudo -E bash scripts/redroid_4u8g_stopwatch/build_host_binder.sh
 ```
 
-默认日志在 `$HOME/redroid-binder-build/build.log`。内核必须是正在跑的那一颗（例如 `5.10.0-323.0.0.224.oe2203sp4.aarch64`），开发包名是同一串加上 `kernel-devel-`。
+默认不要写 `/root`（它在已满的根分区上）。内核必须是正在跑的那一颗（例如 `5.10.0-323.0.0.224.oe2203sp4.aarch64`），开发包名是同一串加上 `kernel-devel-`。
 
 没有把仓库拷到宿主机时，把该脚本全文贴过去即可。它会：安装匹配的 `kernel-devel` → 本机拷源码，没有再拉内核源码包，再没有就下载 Linux 5.10 官方同名文件 → 编 `binder_linux.ko` → 加载 → 再查 `/proc/filesystems`。
 
