@@ -8,3 +8,5 @@
 | [src-files.zh.md](src-files.zh.md) | `src/` 下每个源文件：职责 + 关键函数 |
 
 第三方库（`third_party/`、`src/Reactor` 里的 Subzero 后端实现）不展开；产品路径以 LLVM JIT 为准。
+
+在鲲鹏上要压渲染热点、还没接触过本仓库时，先读 [KunpengHotspotProposal.zh.md](../KunpengHotspotProposal.zh.md)，不要从改 SVE 或 `rr::arm` 开始。

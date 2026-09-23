@@ -404,6 +404,8 @@ AffinityPolicy=one
 | 文档 | 给谁看 |
 |------|--------|
 | [Index.zh.md](Index.zh.md) | SwiftShader 四层架构（API / Renderer / Reactor / JIT） |
+| [src-architecture/overview.zh.md](src-architecture/overview.zh.md) | **当前** `src/` 分层和一次绘制走哪 |
+| [KunpengHotspotProposal.zh.md](KunpengHotspotProposal.zh.md) | 鲲鹏上从零压热点的立项顺序（先量再改） |
 | [Reactor.zh.md](Reactor.zh.md) | **改 SwiftShader 的人** 怎么写 `Float` / `If()`；应用开发者不用读语法章节 |
 | [LLVM.zh.md](LLVM.zh.md) / [Subzero.zh.md](Subzero.zh.md) | 两个 JIT 后端；ARM64 用 LLVM |
 | [RuntimeConfiguration.zh.md](RuntimeConfiguration.zh.md) | `SwiftShader.ini` 语法 |

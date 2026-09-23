@@ -70,3 +70,5 @@ Other documents
 
 A Chinese guide to software-rendering optimization (x86 history, ARM / redroid recommendations, and a glossary) is in [SoftwareRenderingOptimization.zh.md](SoftwareRenderingOptimization.zh.md).
 
+A Chinese project proposal for reducing render hotspots on Kunpeng servers is in [KunpengHotspotProposal.zh.md](KunpengHotspotProposal.zh.md). Current `src/` layout is in [src-architecture/overview.zh.md](src-architecture/overview.zh.md).
+
