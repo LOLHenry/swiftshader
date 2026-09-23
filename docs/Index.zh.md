@@ -72,4 +72,4 @@ GLSL 编译器实现于 [src/OpenGL/compiler/](../src/OpenGL/compiler/)。它使
 
 面向非图形专业读者的软渲染说明（x86 优化背景、ARM / redroid 方案、术语表）见 [SoftwareRenderingOptimization.zh.md](SoftwareRenderingOptimization.zh.md)。
 
-在鲲鹏服务器上从零开始压渲染热点的立项方案见 [KunpengHotspotProposal.zh.md](KunpengHotspotProposal.zh.md)。当前 `src/` 分层见 [src-architecture/overview.zh.md](src-architecture/overview.zh.md)。
+在鲲鹏服务器上从零开始压渲染热点的立项方案见 [KunpengHotspotProposal.zh.md](KunpengHotspotProposal.zh.md)。WP0 基线填空表见 [WP0-baseline-template.zh.md](WP0-baseline-template.zh.md)。当前 `src/` 分层见 [src-architecture/overview.zh.md](src-architecture/overview.zh.md)。
