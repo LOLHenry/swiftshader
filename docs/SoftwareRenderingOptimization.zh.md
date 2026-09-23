@@ -84,7 +84,7 @@ Android 12 以后，常见路径是：
 在 Docker / K8s 里跑的 Android。不是 QEMU 那套官方模拟器，不依赖 `/dev/kvm`。适合云手机、自动化、无 GPU 的 ARM 服务器。图形默认 `guest` = 软渲染。
 
 **SurfaceFlinger**  
-Android 的「窗口合成器」。每个 App 先画到自己的缓冲，再由 SurfaceFlinger 叠成你看到的那一张。软渲染时，应用画一遍、合成可能再处理一遍，两边都吃 CPU。
+Android 的「窗口合成器」。每个 App 先画到自己的缓冲，再由 SurfaceFlinger 叠成你看到的那一张。无 GPU 时合成器没有硬件 Overlay，会走 GLES 的「GPU 合成」，这条 GLES 同样进 ANGLE + SwiftShader（进程是 `surfaceflinger`，不是应用）。所以经常是：**应用画一遍，合成再请 SwiftShader 画一遍**。WP0 要对两个进程都采 perf。
 
 **Skia**  
 Google 的 2D 图形库，Chrome 和 Android 都用。负责直线、曲线、文字、图片、圆角、模糊等。它输出的是「画什么」，真正加速靠底下的 GPU 或软渲染。云手机主界面、列表、WebView，很多时间耗在 Skia 的路径上。
@@ -406,6 +406,7 @@ AffinityPolicy=one
 | [Index.zh.md](Index.zh.md) | SwiftShader 四层架构（API / Renderer / Reactor / JIT） |
 | [src-architecture/overview.zh.md](src-architecture/overview.zh.md) | **当前** `src/` 分层和一次绘制走哪 |
 | [KunpengHotspotProposal.zh.md](KunpengHotspotProposal.zh.md) | 鲲鹏上从零压热点的立项顺序（先量再改） |
+| [WP0-baseline-template.zh.md](WP0-baseline-template.zh.md) | WP0 基线表，复制填写 |
 | [Reactor.zh.md](Reactor.zh.md) | **改 SwiftShader 的人** 怎么写 `Float` / `If()`；应用开发者不用读语法章节 |
 | [LLVM.zh.md](LLVM.zh.md) / [Subzero.zh.md](Subzero.zh.md) | 两个 JIT 后端；ARM64 用 LLVM |
 | [RuntimeConfiguration.zh.md](RuntimeConfiguration.zh.md) | `SwiftShader.ini` 语法 |

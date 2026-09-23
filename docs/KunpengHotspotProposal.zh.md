@@ -6,7 +6,10 @@
 
 术语、x86 历史、FMA/`frecpe` 为什么值钱，见 [SoftwareRenderingOptimization.zh.md](SoftwareRenderingOptimization.zh.md)。  
 当前源码怎么分层、一次绘制走哪，见 [src-architecture/overview.zh.md](src-architecture/overview.zh.md)。  
-`SwiftShader.ini` 语法见 [RuntimeConfiguration.zh.md](RuntimeConfiguration.zh.md)。
+`SwiftShader.ini` 语法见 [RuntimeConfiguration.zh.md](RuntimeConfiguration.zh.md)。  
+WP0 基线表（可直接复制填写）见 [WP0-baseline-template.zh.md](WP0-baseline-template.zh.md)。
+
+**WP** 是 Work Package 的缩写，中文叫 **工作包**：把一件大事拆成可以独立验收的一小段。WP0、WP1…只是编号，0 最先做，不是「优先级 0 可以跳过」。没有 WP0 那张填好的表，后面的改动无法证明变快了。
 
 ---
 
@@ -47,9 +50,33 @@
 你不需要会写着色器。要记住的只有：
 
 - **像素越多越慢**：分辨率 × 帧率 ≈ CPU 工作量。
-- **层越多越慢**：应用画一遍，合成器可能再处理一遍。
+- **层越多越慢**：应用画一遍，SurfaceFlinger 合成时 **常常再走一遍 SwiftShader**（见 §1.3）。
 - **SwiftShader 不会解释执行着色器**：它把 SPIR-V（着色器中间码）变成一份 CPU 函数，放进匿名可执行页。所以热点看起来像 `jit unknown` 是预期现象。
 - **一次处理 4 个像素**（2×2 的 quad），方便走 NEON。
+
+### 1.3 SurfaceFlinger 工作时还要不要 SwiftShader？
+
+**无 GPU 时，经常还要，而且是另一个进程里再跑一套。**
+
+可以把它想成「先各自在纸上画画，再由一个人把几张纸叠成你看见的那一张」：
+
+| 谁 | 干什么 | 无 GPU 时算像素的人 |
+|----|--------|---------------------|
+| 应用（或系统 UI） | 把自己的窗口画到一块缓冲 | 这个进程里的 SwiftShader（GLES → ANGLE → pastel） |
+| 把画好的图交给合成器 | 缓冲变成 AHardwareBuffer；常有一次按行 `memcpy` | 仍是应用这边的 SwiftShader / `prepareForExternalUseANDROID`，还不是 SurfaceFlinger 在叠层 |
+| **SurfaceFlinger** | 把状态栏、应用、导航栏、弹窗等 **层** 叠成屏幕 | 没有硬件合成器（HWC）可用时，它自己也用 GLES 做「GPU 合成」。这条 GLES **同样落到 ANGLE + SwiftShader**，进程名是 `surfaceflinger` |
+
+所以不是「应用画完，SurfaceFlinger 只做内存搬运就结束」。没有真显卡的 Overlay / HWC 时，Android 的默认退路叫 **GPU composition**：合成器当一个 GLES 客户端去混合图层。鲲鹏上没有 GPU，「GPU composition」= 再请 SwiftShader 算一遍。
+
+现网里已经见过：嵌套 redroid 上，**SurfaceFlinger 进程**里 JIT 热点的 90%+ 落在 `PixelRoutine` + `sampler`（见 [overview.zh.md](src-architecture/overview.zh.md)）。那就是合成阶段又在跑 SwiftShader，不是应用残留。
+
+例外（这时合成 **可以** 几乎不进 SwiftShader）：
+
+- 屏幕上只有一层不透明全屏，合成器只是把这块缓冲指给虚拟显示（少见，桌面+状态栏通常不满足）。
+- 以后若走宿主机 GPU / 半虚拟化 HWC，合成在真 GPU 上完成，那是另一条产品线。
+- 某些实现会用 CPU blit 叠两层而不走完整 GLES；那是 memcpy/混合循环，perf 里不像 `swiftshader_jit`，而像拷贝。
+
+因此 WP0 必须对 **应用进程** 和 **surfaceflinger** 各采一次 perf。只采应用，会漏掉「叠层」那一半 CPU。层数、半透明、模糊、圆角会放大 SurfaceFlinger 这一侧；减层、减分辨率对这一侧同样有效。
 
 ### 1.2 「降低热点」的正确含义
 
@@ -259,22 +286,11 @@ flowchart LR
 
 1. 冻结一套「套餐」：分辨率、DPI、`androidboot.redroid_fps`、实例数、cgroup。
 2. 冻结 1～2 个 APK 路径（桌面滑动、WebView、你们最卡的那个）。
-3. 记录表：
+3. 打开并填写 [WP0-baseline-template.zh.md](WP0-baseline-template.zh.md)（机器、容器、场景、FPS/P99、超卖公式、应用 + surfaceflinger 的 perf 前五名）。不要自己另做一套列，否则和后面验收对不上。
 
-| 项 | 填什么 |
-|----|--------|
-| 服务器型号 / `lscpu` | 920 几核几 NUMA、有无 SVE |
-| 容器 `nproc`、cgroup | 可见核 |
-| `ro.hardware.vulkan` | 必须 pastel |
-| 默认 FPS / 宽高 / DPI | redroid 启动参数 |
-| 目标场景平均 FPS、P99 | 同一操作录 3 次取中位数 |
-| 渲染进程 CPU%、线程数 | top -H |
-| perf 前五名（含 anon JIT 占比） | 百分比 |
-| 整机实例数与 load | |
+4. 把「改之前」的两份 `perf report` 和一张界面截图存档。
 
-4. 拍一张「改之前」的 perf 报告存档。
-
-**完成物**：一页基线报告。没有它，后面每一刀都无法验收。
+**完成物**：一份填完的 WP0 表。没有它，后面每一刀都无法验收。
 
 ### WP1 — 调度和像素量（最大杠杆，不改 SwiftShader 源码）
 
