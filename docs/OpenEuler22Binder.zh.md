@@ -194,11 +194,18 @@ CONFIG_ASHMEM=y
 - 不要 `git checkout origin/openeuler2003` 去编 [redroid-modules](https://github.com/remote-android/redroid-modules)。那一支是 **openEuler 20.03 / Linux 4.19**。
 - 不要从别的内核版本拷 `.ko` 过来。
 
-在宿主机上执行仓库脚本（会写日志 `$HOME/redroid-binder-build/build.log`）：
+先看磁盘。根分区满时，`dnf` 装不上 `kernel-devel`，脚本在 `/root` 下建目录也会失败。可用空间建议至少 1 吉字节：
 
 ```bash
-sudo bash scripts/redroid_4u8g_stopwatch/build_host_binder.sh
+df -hT
+# 根分区不够时，先清缓存，或把工作目录放到还有空位的盘：
+sudo dnf clean all
+sudo rm -rf /var/cache/dnf/*
+sudo journalctl --vacuum-size=80M
+WORK=/data/redroid-binder-build sudo -E bash scripts/redroid_4u8g_stopwatch/build_host_binder.sh
 ```
+
+默认日志在 `$HOME/redroid-binder-build/build.log`。内核必须是正在跑的那一颗（例如 `5.10.0-323.0.0.224.oe2203sp4.aarch64`），开发包名是同一串加上 `kernel-devel-`。
 
 没有把仓库拷到宿主机时，把该脚本全文贴过去即可。它会：安装匹配的 `kernel-devel` → 本机拷源码，没有再拉内核源码包，再没有就下载 Linux 5.10 官方同名文件 → 编 `binder_linux.ko` → 加载 → 再查 `/proc/filesystems`。
 

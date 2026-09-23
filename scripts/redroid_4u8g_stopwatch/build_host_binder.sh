@@ -12,6 +12,25 @@ LOG="${LOG:-${WORK}/build.log}"
 KVER="$(uname -r)"
 KDIR="${KDIR:-/lib/modules/${KVER}/build}"
 SRC="${WORK}/src"
+
+echo "======== 磁盘 ========"
+df -hT
+echo
+# 安装 kernel-devel 和编译至少需要约 1 吉字节。根分区满时不要写 /root。
+need_kb=1048576
+target="${WORK}"
+while [[ ! -d "${target}" && "${target}" != / ]]; do
+	target="$(dirname "${target}")"
+done
+avail_kb="$(df -Pk "${target}" | awk 'NR==2 {print $4}')"
+echo "工作目录将写在：${WORK}（所在分区可用 ${avail_kb:-?} 千字节）"
+if [[ -z "${avail_kb}" || "${avail_kb}" -lt "${need_kb}" ]]; then
+	echo "磁盘不够。先清空间，或把 WORK 指到还有空位的分区，例如："
+	echo "  WORK=/data/redroid-binder-build sudo -E bash $0"
+	echo "不要继续装 kernel-devel，dnf 缓存会把根分区撑得更满。"
+	exit 1
+fi
+
 mkdir -p "${SRC}"
 exec > >(tee -a "${LOG}") 2>&1
 
