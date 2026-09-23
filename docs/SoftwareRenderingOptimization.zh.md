@@ -351,12 +351,13 @@ AffinityPolicy=one
 
 ### 6.3 第二阶段：ARM 指令快路径（改 SwiftShader）
 
-在线程和分辨率合理之后，对 **你们 fork 的 SwiftShader** 做与 x86 对等的「打开开关」，而不是重写光栅器。
+在线程和分辨率合理之后，对 **你们 fork 的 SwiftShader** 做与 x86 对等的快路径，而不是重写光栅器。注意：`fmaIsFast()` 几乎不是产品开关；`HasRcpApprox()` 打开前必须先实现 ARM 的 `RcpApprox`。
 
 | 优先级 | 改什么 | 术语对应 | 为什么对云手机有用 |
 |--------|--------|----------|-------------------|
-| 高 | `Caps::fmaIsFast()` 在 ARMv8 为 true | FMA / FMLA | UI 和着色器里大量 `a*b+c`，改动小 |
-| 高 | `HasRcpApprox()` 走 `frecpe` / `frsqrte` | rcp / rsqrt | 采样、LOD、列表滑动、inversesqrt |
+| 先量 | 反汇编最热 JIT，看有无 `fmla` / `fdiv` | — | `fmaIsFast()` 生产路径几乎没人调用；`MulAdd` 已走 `llvm.fmuladd`，ARM 上可能已经是 `fmla` |
+| 高 | **实现** ARM 的 `RcpApprox`/`RcpSqrtApprox` 再打开 `HasRcp*` | rcp / rsqrt | 只改 bool 会 `UNREACHABLE`；采样、LOD、inversesqrt 才吃得到 |
+| 低 | 仅当汇编证明乘加没融合时再动 `fmaIsFast()` 或 `LEGACY_PRECISION` | FMA / FMLA | 不要当第一刀必做项 |
 | 中 | 饱和、pack、min/max、符号掩码的 NEON | paddusb / pack / pmaxsd | Skia/HWUI 的混合与 UNORM |
 | 中 | Blitter / resolve 的 NEON | `_mm_avg_epu8` 的对标 | 合成、缩放、关不掉的 MSAA |
 | 低 | SVE、Width=8 | 可变长向量 | 要改 2×2 和 subgroup，不适合当第一期 |
@@ -367,7 +368,7 @@ AffinityPolicy=one
 - 对照 `src/Reactor/x86.hpp` 和 `LLVMReactor.cpp` 里 `#if x86` 的 `else` 分支，那就是 ARM 清单。
 - 用 **同一套 redroid 镜像、同一 APK、同一分辨率** 做 A/B，看 FPS、CPU%、P99 帧时间，不要只看微基准。
 
-预期要诚实：在 LLVM 已经吐出 4 宽 NEON 的前提下，FMA + 近似倒数常见是 **几个点到一成多**，采样特别重时更高。分辨率减半或每实例少抢一半核，往往是 **几十个百分点**。指令优化是「把每核填充率再往上顶」，不是「替代容量规划」。
+预期要诚实：LLVM 已经吐出 4 宽 NEON 时，只改 `fmaIsFast()` 可能是 **0**；近似倒数在采样重的界面常见是 **几个点到一成多**。分辨率减半或每实例少抢一半核，往往是 **几十个百分点**。指令优化是「把每核填充率再往上顶」，不是「替代容量规划」。
 
 ### 6.4 第三阶段（明确不做，除非第一、二阶段已经顶满）
 
@@ -388,8 +389,8 @@ AffinityPolicy=one
 **第 2 步：确认 ANGLE + pastel + LLVM**  
 避免错误地换驱动。
 
-**第 3 步：fork 上改 FMA 探测和 ARM 近似倒数**  
-这是和 x86 历史工作对齐、且适合你们场景的最小代码集。
+**第 3 步：反汇编后再实现 ARM `RcpApprox`（不要只改 `fmaIsFast`）**  
+乘加可能已经是 `fmla`；只改 `HasRcpApprox` 的返回值会在 ARM 上 `UNREACHABLE`。
 
 **第 4 步：有汇编证据再补 pack/饱和/Blitter**  
 对着 Skia/合成热点做，不要按指令集手册刷完成度。

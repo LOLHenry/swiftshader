@@ -11,6 +11,15 @@ WP0 基线表（可直接复制填写）见 [WP0-baseline-template.zh.md](WP0-ba
 
 **WP** 是 Work Package 的缩写，中文叫 **工作包**：把一件大事拆成可以独立验收的一小段。WP0、WP1…只是编号，0 最先做，不是「优先级 0 可以跳过」。没有 WP0 那张填好的表，后面的改动无法证明变快了。
 
+文中第一次出现的缩写：
+
+| 缩写 | 全称 | 人话 |
+|------|------|------|
+| **AHB** | AHardwareBuffer | Android 用来在进程之间递「一块已经画好的图」的共享缓冲。redroid 上往往是一块 memfd。应用画完要拷进去，SurfaceFlinger 再读出来叠层。提案里说的「AHB 拷贝 / 按行 memcpy」就是这次递交，**还不是**在算着色器。 |
+| HWC | Hardware Composer | 真显卡/显示控制器上的「硬件叠层」。没有 GPU 时通常不可用，合成只好再走 GLES。 |
+| JIT | 即时编译 | 跑着的时候才把着色器变成 CPU 机器码。 |
+| MSAA | 多重采样抗锯齿 | 每个像素算多次再平均，软渲染上很贵。 |
+
 ---
 
 ## 0. 先读这半页
@@ -43,7 +52,7 @@ WP0 基线表（可直接复制填写）见 [WP0-baseline-template.zh.md](WP0-ba
       → ANGLE       把 GLES 翻译成 Vulkan
         → SwiftShader (vulkan.pastel)
             SPIR-V 着色器 → 在 CPU 上 JIT 成机器码 → 填像素
-          → 把画面拷到 AHardwareBuffer
+          → 把画面拷进 AHB（AHardwareBuffer，给合成器看的共享图）
             → SurfaceFlinger 把各层窗口叠成你看见的那一张
 ```
 
@@ -63,7 +72,7 @@ WP0 基线表（可直接复制填写）见 [WP0-baseline-template.zh.md](WP0-ba
 | 谁 | 干什么 | 无 GPU 时算像素的人 |
 |----|--------|---------------------|
 | 应用（或系统 UI） | 把自己的窗口画到一块缓冲 | 这个进程里的 SwiftShader（GLES → ANGLE → pastel） |
-| 把画好的图交给合成器 | 缓冲变成 AHardwareBuffer；常有一次按行 `memcpy` | 仍是应用这边的 SwiftShader / `prepareForExternalUseANDROID`，还不是 SurfaceFlinger 在叠层 |
+| 把画好的图交给合成器 | 缓冲变成 **AHB**（共享图）；常有一次按行 `memcpy` | 仍是应用这边的 SwiftShader / `prepareForExternalUseANDROID`，还不是 SurfaceFlinger 在叠层 |
 | **SurfaceFlinger** | 把状态栏、应用、导航栏、弹窗等 **层** 叠成屏幕 | 没有硬件合成器（HWC）可用时，它自己也用 GLES 做「GPU 合成」。这条 GLES **同样落到 ANGLE + SwiftShader**，进程名是 `surfaceflinger` |
 
 所以不是「应用画完，SurfaceFlinger 只做内存搬运就结束」。没有真显卡的 Overlay / HWC 时，Android 的默认退路叫 **GPU composition**：合成器当一个 GLES 客户端去混合图层。鲲鹏上没有 GPU，「GPU composition」= 再请 SwiftShader 算一遍。
@@ -102,7 +111,7 @@ WP0 基线表（可直接复制填写）见 [WP0-baseline-template.zh.md](WP0-ba
 
 1. 建立一套 **可复现的鲲鹏测量方法**：固定 APK、固定分辨率、固定 FPS 上限，能回答「时间在哪一层」。
 2. 用 **不改指令** 的手段先把超卖和像素量按住（配额、`ThreadCount`、分辨率、目标帧率、关 MSAA）。
-3. 在确认热点落在 SwiftShader JIT 之后，打开 **FMLA** 和 **`frecpe` / `frsqrte`**（x86 已有、ARM 被写成 false 的两条）。
+3. 在确认热点落在 SwiftShader JIT 且汇编里有密 `fdiv` 之后，**实现** ARM 的近似倒数（不是只改 `fmaIsFast()`）。
 4. 只有汇编证明某段是标量循环或真除法时，再补饱和 / pack / Blitter。
 
 ### 2.2 非目标（本期不做）
@@ -120,7 +129,7 @@ WP0 基线表（可直接复制填写）见 [WP0-baseline-template.zh.md](WP0-ba
 
 ### 2.3 成功标准（建议写进验收）
 
-**WP0 完成**：能拿出一张表，列出目标场景下各层 CPU 占比（应用、Skia/HWUI、ANGLE、`swiftshader_jit`、AHB memcpy、SurfaceFlinger、内核/软中断），误差可复现。
+**WP0 完成**：能拿出一张填完的 [WP0 表](WP0-baseline-template.zh.md)，列出目标场景下各层 CPU 占比（应用、Skia/HWUI、ANGLE、`swiftshader_jit`、AHB 拷贝、SurfaceFlinger、内核/软中断），误差可复现。
 
 **WP1 完成**：在「整机实例数上去」的前提下，单容器 FPS 不塌；每实例渲染线程数等于该容器 cpuset，而不是 16。相对 WP0 默认配置，渲染 CPU% 或可开实例数有 **明显** 变化（经验上常常是几十个百分点量级，以实测为准）。
 
@@ -152,8 +161,8 @@ cat /proc/cpuinfo | head -n 40
 | 通常 **1 线程/核**（无 SMT） | `ThreadCount` 超卖没有「超线程缓冲」，就是硬抢物理核。 |
 | **NUMA 多节点** | 渲染线程和帧缓冲不在同一节点时，memcpy / 写回颜色会变贵。绑定比再改一条 SIMD 更先做。 |
 | **NEON 128 位、4×float32** | 和 SwiftShader `SIMD::Width = 4` 天生对齐。LLVM 对普通加减乘往往会自己发 NEON。 |
-| **ARMv8 自带 FMLA** | 融合乘加是硬件能力；但代码里 `Caps::fmaIsFast()` **只认 x86 AVX2**，鲲鹏上会当成「FMA 不快」。 |
-| **有 `frecpe` / `frsqrte`** | 近似倒数 / 反平方根；`HasRcpApprox()` **只在 x86 为 true**，鲲鹏走真除法。 |
+| **ARMv8 自带 FMLA** | 硬件有融合乘加。产品路径走 `MulAdd`→`llvm.fmuladd`，LLVM 在 ARM 上常常已经能吐 `fmla`。`fmaIsFast()` 几乎没人调用，不要指望改一行探测就变快。 |
+| **有 `frecpe` / `frsqrte`** | 近似倒数 / 反平方根。`HasRcpApprox()` 只在 x86 为 true，且 ARM 上 `RcpApprox()` 是空实现。这才是值得写代码的点。 |
 | **官方 920 无 SVE** | 不要把「上 SVE」写进本期里程碑。 |
 | 内存带宽被很多核分享 | 1080p × 高 FPS × 多实例会先打满带宽，再谈指令。 |
 
@@ -173,7 +182,7 @@ flowchart TD
   C -->|"Skia / HWUI / SurfaceFlinger"| PIX["减分辨率、DPI、层数、模糊；关 MSAA"]
   C -->|"ANGLE 翻译"| ANG["确认 12+ 走 ANGLE+pastel，不要退回旧 GLES ICD"]
   C -->|"swiftshader_jit / jit unknown"| JIT["进入 WP2/WP3：打开 JIT，再改 FMA/rcp"]
-  C -->|"AHB / memcpy / prepareForExternalUse"| COPY["上屏拷贝热点：减分辨率或查格式/行拷贝"]
+  C -->|"AHB 拷贝 / memcpy"| COPY["递交共享图的按行拷贝：减分辨率或查行距"]
   C -->|"N×16 渲染线程、整机 load 打满"| SCH["WP1：cpuset + ThreadCount + NUMA"]
 ```
 
@@ -233,7 +242,7 @@ perf report
 
 - `libhwui` / `libskia`：2D 自己在算，或不该那么多层。
 - `libEGL` / ANGLE：翻译开销。
-- `prepareForExternalUseANDROID` / 按行 memcpy：上屏拷到 AHardwareBuffer，架构文档里写过这条会和 JIT 抢热点。
+- `prepareForExternalUseANDROID` / 按行 memcpy：画完后把图拷进 AHB 交给合成器，会和 JIT 抢 CPU。这是搬运，改 FMA 治不了。
 - 内核 `copy_to_user` / 软中断：更像 I/O 或超卖，不是改 `frecpe` 能治的。
 
 **4）还缺名字时怎么「打开」JIT（WP2，不要和 WP3 并行乱改）**
@@ -260,7 +269,7 @@ WP2 的验收是「能说话」，不是「已经更快」。
 | `fmul` 紧跟 `fadd` 算 `a*b+c` | 没走 FMA | WP3：让 `fmaIsFast()` 在 ARM 为 true |
 | `fdiv` / `fsqrt` 很密 | 真除法、真开方 | WP3：`frecpe` / `frsqrte` + 牛顿迭代 |
 | 标量 `ldrb`/`strb` 小循环，在混合或拷贝里 | 没向量化的 pack / Blitter | WP4，且只改这处 |
-| 大量内存访问、几乎没有算术 | 带宽或格式转换 | 减分辨率，或查 AHB 拷贝，不要改 FMA |
+| 大量内存访问、几乎没有算术 | 带宽或格式转换 | 减分辨率，或查 AHB 那次按行拷贝，不要改 FMA |
 
 ---
 
@@ -299,7 +308,7 @@ flowchart LR
 **做：**
 
 1. 每个 redroid **只能看见套餐核数**（常见 2～4），不要把 128 核暴露进去。
-2. 进程工作目录放 `SwiftShader.ini`（只认 cwd，区分大小写）：
+2. **应用进程和 `surfaceflinger` 各自加载一份 ICD**，各有一份 `ThreadCount`。ini 只认 **该进程的 cwd**（`ls -l /proc/<pid>/cwd`），不是 `.so` 所在目录。两个进程 cwd 往往不同，只给其中一个放 ini，另一边仍可能起 16 条线程。先对两个 pid 都确认 cwd 后再放：
 
 ```ini
 [Processor]
@@ -312,7 +321,7 @@ AffinityPolicy=one
 3. 经验公式：
 
 ```text
-实例数 × ThreadCount  ≈  物理核数 − 预留
+实例数 ×（应用 ThreadCount + surfaceflinger ThreadCount）  ≈  物理核数 − 预留
 ```
 
 4. 像素量：能 720p 就不要默认 1080p；能 15/20 FPS 就不要锁 30/60；DPI 过高会让系统按「更密的屏」多画资源。
@@ -325,36 +334,38 @@ AffinityPolicy=one
 
 ### WP2 — 打开热点（仍几乎不改算法）
 
-**谁做**：一名能编 SwiftShader、会看 `perf` 的人。
+**谁做**：一名能在宿主机上对容器进程跑 `perf` 的人。会编进 Android 镜像更好，但不是第一天必须。
 
 **做：**
 
-1. 在 WP1 已经不再超卖的机器上，对目标场景再采一次 perf。
-2. 若 anon JIT < 30% 且 Skia/memcpy 更大：把结论写进报告，**WP3 降级或停**。
-3. 若 JIT 是大头：开 `REACTOR_EMIT_ASM_FILE` 和/或 SPIR-V profiler，对照最热函数。
-4. 可选：给 JIT 完成路径补 `/tmp/perf-<pid>.map`（名字用已有的 `PixelRoutine_%08X` / `sampler`）。这是剖析基建，单独评审，不要和 FMA 补丁混成一个 commit。
+1. 在 WP1 已经不再超卖的机器上再采一次。**`perf` 打在宿主机、用宿主机看到的 pid**。容器里 `pidof` 的号和宿主机不是同一个；先用 cgroup / `ps` 对上再采。
+2. 若 anon JIT < 30% 且 Skia / AHB 拷贝更大：写进报告，**WP3 降级或停**。
+3. JIT 是大头时：先用 `/proc/<pid>/maps` 确认页名是 `swiftshader_jit`。`REACTOR_EMIT_ASM_FILE` 和 SPIR-V profiler 都要 **重编并替换镜像里的 so**，不要和「改探测函数」绑在同一个迭代。
+4. 可选：给 JIT 完成路径补 `/tmp/perf-<pid>.map`。剖析基建，单独评审。
 
-**完成物**：一份「热点归属」备忘：时间在 PixelRoutine、sampler，还是 AHB 拷贝；热指令是除法、乘加还是内存。
+**完成物**：热点在算像素、采样，还是 AHB 按行拷贝；若已有汇编，热指令是除法、乘加还是内存。
 
-### WP3 — 最小代码：打开鲲鹏已经有的指令
+### WP3 — 为什么从「这两个函数」入手，以及实际要改多少
 
-**谁做**：改本 fork 的 C++，对照 [SoftwareRenderingOptimization.zh.md](SoftwareRenderingOptimization.zh.md) 第 6.3 节。
+**不是打开两个开关就结束。** 选它们，是因为 x86 已接好、鲲鹏硬件也有对应指令、代码写成「只认 x86」——改动面相对可控。对着源码看过之后，两件事的可操作性不一样。
 
-这是和 x86 历史工作对齐、且适合鲲鹏 920 的最小集合。
+**为什么是它们，不是 SVE / 加宽光栅**
 
-| 改动 | 文件（起点） | 现在为什么亏 | 改完期望看到 |
-|------|--------------|--------------|--------------|
-| `Caps::fmaIsFast()` 在 AArch64 为 true | `src/Reactor/LLVMReactor.cpp`（约 403 行，现在只看 `CPUID::supportsAVX2()`） | 着色器里大量 `a*b+c`，可能拆成乘+加 | 热函数里出现 `fmla` / `fmla v*.4s` |
-| `HasRcpApprox()` 走 NEON 估计 | 同文件约 2903 行，`#if x86` 才 true | 透视、LOD、归一化走 `fdiv` | `frecpe`，反平方根走 `frsqrte`，必要时一次牛顿迭代 |
+着色器和采样里大量是 `a * b + c`（点积、多项式）和 `1/x`、`1/sqrt(x)`（透视、纹理 LOD、各向异性）。见 `SamplerCore.cpp` 的 `Rcp`、`ShaderCore.cpp` / `SpirvShaderArithmetic.cpp` 的 `MulAdd`。鲲鹏 920 的 NEON 有 `FMLA` 和 `frecpe` / `frsqrte`。仓库把「用不用快路径」收在 `Caps::fmaIsFast()` 和 `HasRcpApprox()`，ARM 分支直接 false。
 
-实施约束：
+**对照代码后必须改口**
 
-- 只改探测和 lowering，不改光栅宽度。
-- 用 **WP0 同一套场景** A/B，记录 FPS、CPU%、P99，以及抽一帧截图防精度回归。
-- 先反汇编再合入：若已经是 NEON `fadd`/`fmul`，FMA 仍值得试（FMLA 更省）；若已经是 `frecpe`，不要再包一层。
-- Vulkan/GLSL 的 relaxed precision 才适合近似倒数；精确路径保持真除法。
+1. **`fmaIsFast()` 几乎不是产品路径的开关。** 生产代码几乎没人调用它（单元测试会问一句）。真正乘加走 `MulAdd()` → `llvm.fmuladd`，AArch64 后端常常已经收成 `fmla`。只改这一行 **可能零收益**。第一刀应是反汇编最热 JIT：已有 `fmla` 就不要为这个函数立项。还要查有没有打开 `SWIFTSHADER_LEGACY_PRECISION`（为 true 时故意拆成 `x*y+z`）。
 
-**预期**：几个点到一成多。写进计划时不要承诺「翻倍」。
+2. **`HasRcpApprox()` 才有开关意义，但不能只改返回值。** `DoRcp()` 在非 x86 上只要它为真就会调 `RcpApprox()`，而 ARM 上 `RcpApprox()` / `RcpSqrtApprox()` 是 `UNREACHABLE`（`LLVMReactor.cpp`）。只改 bool 会在生成倒数时崩。必须同时用 LLVM intrinsic 或 NEON **实现** 这两个函数，并打开 `HasRcpSqrtApprox()`。非 x86 上即使不是 relaxed precision 也会走近似（`Reactor.cpp` 的 `DoRcp`），精度靠截图和 dEQP 看，不能当一行开关。
+
+| 项 | 真实工作量 | 什么时候做 |
+|----|------------|------------|
+| 反汇编确认有无 `fmla` / `fdiv` | WP2 的延伸 | **先做** |
+| 实现 ARM `RcpApprox` / `RcpSqrtApprox` 并打开 `HasRcp*` | 小补丁 + 单测 + 场景 A/B | JIT 里 `fdiv`/`fsqrt` 密 |
+| 只改 `fmaIsFast()` | 一行，可能零收益 | 仅当汇编证明乘加没融合，且查清是探测在挡 |
+
+还要有「编 AArch64 SwiftShader → 打进 redroid 镜像 → 重启实例」的流水线，否则 WP3 在现网不可操作。预期：rcp 在采样重的界面可能几个点到一成多；FMA 那行可能是 0。不要承诺翻倍。
 
 ### WP4 — 有汇编证据再补的 NEON
 
@@ -382,7 +393,7 @@ JIT 第一次碰到某种「着色器 + 混合 + 格式」会编译，表现为�
 
 ## 6. 建议的人员与阅读顺序
 
-不需要先读完一本图形学。需要会的是：Linux 上看 CPU、`perf`、读几行 ARM 汇编、改两处 C++ 开关、做 A/B。
+不需要先读完一本图形学。需要会的是：Linux 上看 CPU、在宿主机对容器 pid 跑 `perf`、读几行 ARM 汇编、能把 AArch64 so 打进镜像、做 A/B。WP3 不是「改两行 bool」。
 
 | 角色 | 负责 | 先读 |
 |------|------|------|
@@ -427,11 +438,28 @@ JIT 第一次碰到某种「着色器 + 混合 + 格式」会编译，表现为�
     ├─ WP1  每容器 2～4 核；ThreadCount 对齐；720p / 合理 FPS；关 MSAA
     ├─ WP2  热点归属：JIT / sampler / AHB 拷贝 / Skia / 抢核
     │         └─ 不是 JIT 算术？ 停止改指令
-    ├─ WP3  fmaIsFast() + HasRcpApprox() 对 AArch64 打开
+    ├─ WP3  先看汇编；有密 `fdiv` 再实现 ARM RcpApprox（不要只改 fmaIsFast）
     ├─ WP4  仅对汇编里的标量坑补 NEON
     └─ WP5  预热 + 镜像固化 + 密度公式写进运维
 ```
 
 **开始优化的第一周**：只做 WP0 + WP1。若你还没在鲲鹏上对目标 APK 跑过一次 `perf report`，没有任何指令补丁是「从这里开始」。
 
-**一句话**：在鲲鹏上降渲染热点，先让每个容器少看见核、少画像素，再让 `perf` 能看懂 `swiftshader_jit`，最后打开 CPU 本来就有的 FMLA 和近似倒数。SVE 和加宽光栅不进本期。
+**一句话**：在鲲鹏上降渲染热点，先让每个容器少看见核、少画像素，再分清时间是在算像素还是在拷 AHB，最后才写 ARM 的近似倒数。SVE 和加宽光栅不进本期。
+
+---
+
+## 9. 可操作性自检（作者复盘）
+
+提案初稿把 WP3 写成「打开两个函数」，把 AHB 当缩写扔在 perf 表里，对没接触过图形的人 **不可操作**。对照源码后，各包实际难度如下。
+
+| 工作包 | 新手能不能做 | 主要卡点 | 怎么才算可操作 |
+|--------|--------------|----------|----------------|
+| WP0 | 能，但 `perf` 容易采错进程 | 容器 pid ≠ 宿主机 pid；P99 可能没有现成脚本；AHB 不是符号名，表上看成 memcpy | 用 [WP0 模板](WP0-baseline-template.zh.md)；perf 打宿主 pid；AHB = 递交共享图的那次拷贝 |
+| WP1 | **最可操作，也是最大杠杆** | ini 只认 cwd；**两个进程**各一份 ThreadCount | 对应用和 surfaceflinger 都确认 cwd；公式按两个进程加总 |
+| WP2 | 中等 | 吐汇编 / SPIR-V profiler 要重编 so | 第一周只做 maps + perf 分类；吐汇编另开迭代 |
+| WP3 | 初稿写轻了 | `fmaIsFast` 可能零收益；只改 `HasRcpApprox` 会 `UNREACHABLE`；要有 AArch64 进镜像的流水线 | 先反汇编；rcp 要 **实现** `RcpApprox`，不是改 bool |
+| WP4 | 只在有汇编证据时 | 容易按手册刷指令 | 没有 WP2 证据就不开工 |
+| WP5 | 能 | 缓存不跨容器 | 启动脚本跑一遍目标 APK |
+
+**先做 WP0+WP1 仍然成立。** 若没有「把自编 so 打进 redroid」的能力，本期停在配置和像素量，不要空许 FMA 补丁。

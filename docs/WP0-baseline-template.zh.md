@@ -71,15 +71,16 @@
 
 ## E. 热点归属（perf 前五名）
 
-对 **应用进程** 和 **surfaceflinger** 各采一次（合成也会走软渲染，见提案里 SurfaceFlinger 一节）。
+对 **应用进程** 和 **surfaceflinger** 各采一次（合成也会走软渲染）。
+
+**perf 打在宿主机上**，pid 用宿主机看到的那个。容器里 `pidof surfaceflinger` 的数字对宿主机无效。先在宿主机用 cgroup / `ps` 对上，再采。
 
 ```bash
-# 例：对 surfaceflinger
-pid=$(pidof surfaceflinger)
-perf record -g -p $pid -- sleep 30
+# 在宿主机上，<host_pid> 是该容器 surfaceflinger 的宿主 pid
+perf record -g -p <host_pid> -- sleep 30
 perf report --stdio | head -n 80
-# 对照匿名页名字
-grep -n swiftshader /proc/$pid/maps
+# 对照匿名页名字（maps 也要用同一个 pid 命名空间里的）
+grep swiftshader /proc/<host_pid>/maps
 ```
 
 | 排名 | 符号或占比类别 | 进程（应用 / surfaceflinger） | 约占 CPU% |
@@ -87,7 +88,7 @@ grep -n swiftshader /proc/$pid/maps
 | 1 | 例：`jit unknown` / `swiftshader_jit` | | |
 | 2 | 例：`libhwui` / Skia | | |
 | 3 | 例：ANGLE / `libEGL` | | |
-| 4 | 例：`prepareForExternalUseANDROID` / memcpy | | |
+| 4 | 例：memcpy / `prepareForExternalUse`（AHB：把画好的图拷进共享缓冲） | | |
 | 5 | 例：内核 / 其它 | | |
 | 合计核对 | 前五名相加（不必等于 100） | | |
 
@@ -98,7 +99,7 @@ grep -n swiftshader /proc/$pid/maps
 - [ ] ANGLE 翻译
 - [ ] `swiftshader_jit`（CPU 在算像素，**应用进程**）
 - [ ] `swiftshader_jit`（CPU 在算像素，**surfaceflinger 进程**）
-- [ ] AHB / 按行 memcpy（上屏拷贝）
+- [ ] AHB 拷贝（AHardwareBuffer：应用把画好的图按行 memcpy 进共享缓冲，还不是叠层）
 - [ ] 每容器约 16 条忙线程 / 整机打满（先做 WP1）
 
 ## F. 附件清单
