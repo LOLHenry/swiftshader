@@ -6,6 +6,8 @@
 
 Binder 不是一个用户态守护进程，也没有 `systemctl start binder` 这种服务。要么内核里已经编进去了，要么编成可加载模块再装上，要么换一颗打开了相应配置的内核。
 
+**现场不能重启、也没有换内核权限时，只能走树外模块：编 `binder_linux.ko`，当场 `insmod`，不要碰启动项。** 换内核那条路需要重启，这篇里标成「有权限再做」。源码用 openEuler 自己的内核源码包，不要去 GitHub。
+
 openEuler 22 常见内核是 Linux 5.10。发行版默认配置通常**不打开** Android Binder。这和 Ubuntu 不一样：Ubuntu 往往只要再装 `linux-modules-extra`，然后 `modprobe binder_linux` 就能用。openEuler 22 不能指望这一步。
 
 ---
@@ -150,8 +152,8 @@ openEuler 的 Linux 5.10 把 `CONFIG_ANDROID_BINDER_IPC` 写成 **bool**：编�
 
 怎么办，只有两条路：
 
-1. **官方、也是最稳的**：用同一条 openEuler 5.10 源码，把上面四个配置改成 `y`，编出一颗新内核，安装并重启。开机即有 Binder，不必再加载模块。见本节后面。
-2. **先试验、不换整机内核**：无视这份 bool，把 `binder.c` 等文件在树外拼成 `binder_linux.ko` 再 `insmod`。这不是发行版支持的安装方式；编不过或加载报版本魔数、未知符号，就停，改走第 1 条。见第 4 节。
+1. **不能重启时（现场默认）**：无视这份 bool，把 `binder.c` 等文件在树外拼成 `binder_linux.ko`，当场 `insmod`。不改启动项、不换 `uname -r`。编不过或加载报版本魔数、未知符号，这台机器在重启权限下来之前做不了 Binder。见第 4 节。
+2. **有换内核和重启权限时**：用同一条 openEuler 5.10 源码，把上面四个配置改成 `y`，编出新内核，安装并重启。见第 3.1 节。
 
 不要尝试把正在跑的内核的 `.config` 改成 `=m` 再 `make M=drivers/android`。bool 开关不会因此变成模块。
 
@@ -195,6 +197,8 @@ CONFIG_ASHMEM=y
 5. 重启后再跑第 1 节。`grep binder /proc/filesystems` 必须出现 `nodev binder`。
 
 这条路会换内核，影响面最大，但也是 redroid 文档承认的 openEuler 做法。现场若本来就要维护自有内核，优先走这里。
+
+编内核请把工作目录放在 `/home`（根分区往往已被 Docker 占满）。源码包用和 `uname -r` 一致的那一颗，例如 `kernel-5.10.0-323.0.0.224.oe2203sp4.src.rpm`。以正在跑的 `/boot/config-$(uname -r)` 为底打开上面四项，编完安装后**保留旧内核当启动回退**，再重启。重启后 `uname -r` 会变，第 4 节的树外模块就不必再加载。
 
 ---
 
