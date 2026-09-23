@@ -16,18 +16,24 @@ SRC="${WORK}/src"
 echo "======== 磁盘 ========"
 df -hT
 echo
-# 安装 kernel-devel 和编译至少需要约 1 吉字节。根分区满时不要写 /root。
-need_kb=1048576
+# 工作目录可放 /home；kernel-devel 仍写入根分区的 /usr 与 /lib。两处都要有空位。
+need_work_kb=262144
+need_root_kb=1048576
 target="${WORK}"
 while [[ ! -d "${target}" && "${target}" != / ]]; do
 	target="$(dirname "${target}")"
 done
-avail_kb="$(df -Pk "${target}" | awk 'NR==2 {print $4}')"
-echo "工作目录将写在：${WORK}（所在分区可用 ${avail_kb:-?} 千字节）"
-if [[ -z "${avail_kb}" || "${avail_kb}" -lt "${need_kb}" ]]; then
-	echo "磁盘不够。先清空间，或把 WORK 指到还有空位的分区，例如："
-	echo "  WORK=/data/redroid-binder-build sudo -E bash $0"
-	echo "不要继续装 kernel-devel，dnf 缓存会把根分区撑得更满。"
+avail_work_kb="$(df -Pk "${target}" | awk 'NR==2 {print $4}')"
+avail_root_kb="$(df -Pk / | awk 'NR==2 {print $4}')"
+echo "工作目录将写在：${WORK}（所在分区可用 ${avail_work_kb:-?} 千字节）"
+echo "根分区 / 可用 ${avail_root_kb:-?} 千字节（安装 kernel-devel 必须写这里）"
+if [[ -z "${avail_work_kb}" || "${avail_work_kb}" -lt "${need_work_kb}" ]]; then
+	echo "工作目录所在分区不够。openEuler 上常见做法：WORK=/home/redroid-binder-build"
+	exit 1
+fi
+if [[ -z "${avail_root_kb}" || "${avail_root_kb}" -lt "${need_root_kb}" ]]; then
+	echo "根分区不够。不要开始 dnf install。Docker 的 overlay 若在 /var/lib/docker，多半占的就是这块盘。"
+	echo "先清 /var/cache/dnf 和日志；再看 docker system df。不要把 WORK 改到 /home 就以为能装开发包。"
 	exit 1
 fi
 
