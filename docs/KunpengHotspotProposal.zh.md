@@ -33,7 +33,7 @@ WP0 基线表（可直接复制填写）见 [WP0-baseline-template.zh.md](WP0-ba
 1. **先分清热点在哪一层**（应用 / Skia / ANGLE / SwiftShader JIT / 上屏 memcpy / 调度抢核）。
 2. **先砍像素量和线程超卖**（通常比改指令涨得更快）。
 3. **再打开热点**：让 JIT 能对上函数名和几条汇编。
-4. **最后改 SwiftShader 里 ARM 被关掉的快路径**（FMA、近似倒数），并且只用同一套场景做 A/B。
+4. **最后**在汇编证明有密除法时，实现 ARM 的近似倒数（不要只改 `fmaIsFast()`），并且只用同一套场景做 A/B。
 
 鲲鹏 920 官方是 **ARMv8.2 + 128 位 NEON，不支持 SVE**。SwiftShader 的向量宽度正好是 4 个 float，和 NEON 对齐。你的主战场是「同样 4 个数，少用慢指令、少画废像素、别让 100 个容器各起 16 条渲染线程」，不是换一套更宽的向量架构。
 
@@ -365,7 +365,7 @@ AffinityPolicy=one
 | 实现 ARM `RcpApprox` / `RcpSqrtApprox` 并打开 `HasRcp*` | 小补丁 + 单测 + 场景 A/B | JIT 里 `fdiv`/`fsqrt` 密 |
 | 只改 `fmaIsFast()` | 一行，可能零收益 | 仅当汇编证明乘加没融合，且查清是探测在挡 |
 
-还要有「编 AArch64 SwiftShader → 打进 redroid 镜像 → 重启实例」的流水线，否则 WP3 在现网不可操作。预期：rcp 在采样重的界面可能几个点到一成多；FMA 那行可能是 0。不要承诺翻倍。
+**你们团队**还要能自己完成：在 AArch64 上编出 SwiftShader → 把 `libvk_swiftshader.so` / `vulkan.pastel` 换进 redroid 系统镜像 → 重启实例再测。做不到这一串，现网里的 Android 仍是旧 so，WP3 的补丁进不去容器，测了也没用。rcp 在采样重的界面可能几个点到一成多；只改 `fmaIsFast()` 可能是 0。不要对业务承诺翻倍。
 
 ### WP4 — 有汇编证据再补的 NEON
 
@@ -399,7 +399,7 @@ JIT 第一次碰到某种「着色器 + 混合 + 格式」会编译，表现为�
 |------|------|------|
 | 平台 / 编排 | WP1、NUMA、实例密度 | 本文 §3、§5 WP1 |
 | 测量 | WP0、WP2 | 本文 §4；[overview.zh.md](src-architecture/overview.zh.md) 第 3、4 节 |
-| 改 SwiftShader | WP3、WP4 | [SoftwareRenderingOptimization.zh.md](SoftwareRenderingOptimization.zh.md) §3、§6；`LLVMReactor.cpp` 里 `fmaIsFast` / `HasRcpApprox` |
+| 改 SwiftShader | WP3、WP4 | [SoftwareRenderingOptimization.zh.md](SoftwareRenderingOptimization.zh.md) §3、§6；先反汇编，再实现 `RcpApprox` |
 | 应用 / 套餐 | 分辨率、FPS、要不要 1080p | 本文 §1、§2 |
 
 源码阅读（改代码的人，大约按这个顺序点开即可）：
@@ -462,4 +462,10 @@ JIT 第一次碰到某种「着色器 + 混合 + 格式」会编译，表现为�
 | WP4 | 只在有汇编证据时 | 容易按手册刷指令 | 没有 WP2 证据就不开工 |
 | WP5 | 能 | 缓存不跨容器 | 启动脚本跑一遍目标 APK |
 
-**先做 WP0+WP1 仍然成立。** 若没有「把自编 so 打进 redroid」的能力，本期停在配置和像素量，不要空许 FMA 补丁。
+**这句话是说给做本项目的人（现场 + 研发）的，不是说给应用开发的。**
+
+- **「进镜像」**：你们能不能自己编一份 ARM64 的 SwiftShader，并替换 redroid 镜像里那份 `.so`。这是改 C++ 之后，新代码要出现在容器里的唯一办法。
+- **「配额」**：给每个 redroid 限核能看见几核（cgroup / cpuset），再配上 `ThreadCount`。这是 WP1，改编排和 ini，**不用编 SwiftShader**。
+- **「停在配额和分辨率」**：如果你们暂时还不能换镜像里的 so，**本期就只做 WP0 和 WP1**——限核、限线程、降低分辨率/目标帧率。不要在计划里写「我们要改 `fmaIsFast` / `HasRcpApprox`」，因为那两处改完也部署不进去，等于空头支票。
+
+能换 so 之后，再单独立项 WP3。WP0+WP1 不依赖编库，现在就可以做。
