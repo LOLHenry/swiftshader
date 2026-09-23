@@ -212,6 +212,8 @@ CONFIG_ASHMEM=y
 
 现场若已经具备完整内核源码和 `kernel-devel`（例如 `/usr/src/linux-$(uname -r)/drivers/android/*.c` 与 `/usr/src/kernels/$(uname -r)`），**不要再下载源码包**。完整源码树里 `make modules_prepare` 成功、`auto.conf` 出现 `CONFIG_ANDROID_BINDER_IPC=m`，只说明这份源码能编，不等于正在跑的内核已经有 Binder。不要用改过配置的完整源码树当 `make -C` 的目录（和正在跑的内核对不齐），也不要在那里 `make M=drivers/android`（会拆成多个不能单独加载的 `.ko`）。`.c` 拷到 `/home/redroid-binder-build`，对着 `kernel-devel` 合成一个 `binder_linux.ko`。模块很小，不要 `make -j320`。
 
+不要用 `bash -s` 套多层 heredoc 往终端里贴：`for ... do` 很容易被上一行未闭合的引号或 `*/` 弄断，报 `syntax error near unexpected token do`。先把 `scripts/redroid_4u8g_stopwatch/build_binder_local.sh` 写成文件，`bash -n` 通过后再执行。
+
 仍然不要做：
 
 - 不要 `git checkout origin/openeuler2003` 去编 [redroid-modules](https://github.com/remote-android/redroid-modules)。那一支是 **openEuler 20.03 / Linux 4.19**。
