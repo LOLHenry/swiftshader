@@ -32,43 +32,27 @@ if docker inspect "${NAME}" >/dev/null 2>&1; then
 	docker rm -f "${NAME}" >/dev/null
 fi
 
-DOCKER_ARGS=(
-	run -d --name "${NAME}" --privileged
-	--cpus=4
-	--memory=8g
-	--memory-swap=8g
-	--pull=never
-	-p "${ADB_PORT}:5555"
-	-v "${SCRIPT_DIR}/SwiftShader.ini:/data/local/tmp/SwiftShader.ini:ro"
-	"${IMAGE}"
-	androidboot.redroid_gpu_mode=guest
-	androidboot.use_memfd=true
-	"androidboot.redroid_width=${WIDTH}"
-	"androidboot.redroid_height=${HEIGHT}"
-	"androidboot.redroid_dpi=${DPI}"
-	"androidboot.redroid_fps=${FPS}"
-)
-
+echo "启动容器"
+CPUSET_ARGS=()
 if [[ -n "${CPUSET}" ]]; then
-	DOCKER_ARGS=(run -d --name "${NAME}" --privileged
-		--cpus=4
-		--cpuset-cpus="${CPUSET}"
-		--memory=8g
-		--memory-swap=8g
-		--pull=never
-		-p "${ADB_PORT}:5555"
-		-v "${SCRIPT_DIR}/SwiftShader.ini:/data/local/tmp/SwiftShader.ini:ro"
-		"${IMAGE}"
-		androidboot.redroid_gpu_mode=guest
-		androidboot.use_memfd=true
-		"androidboot.redroid_width=${WIDTH}"
-		"androidboot.redroid_height=${HEIGHT}"
-		"androidboot.redroid_dpi=${DPI}"
-		"androidboot.redroid_fps=${FPS}")
+	CPUSET_ARGS=(--cpuset-cpus="${CPUSET}")
 fi
 
-echo "启动容器"
-docker "${DOCKER_ARGS[@]:1}" 2>/dev/null || docker "${DOCKER_ARGS[@]}"
+docker run -d --name "${NAME}" --privileged \
+	--cpus=4 \
+	"${CPUSET_ARGS[@]}" \
+	--memory=8g \
+	--memory-swap=8g \
+	--pull=never \
+	-p "${ADB_PORT}:5555" \
+	-v "${SCRIPT_DIR}/SwiftShader.ini:/data/local/tmp/SwiftShader.ini:ro" \
+	"${IMAGE}" \
+	androidboot.redroid_gpu_mode=guest \
+	androidboot.use_memfd=true \
+	"androidboot.redroid_width=${WIDTH}" \
+	"androidboot.redroid_height=${HEIGHT}" \
+	"androidboot.redroid_dpi=${DPI}" \
+	"androidboot.redroid_fps=${FPS}"
 
 echo "等待 adb 和开机（最多约 3 分钟）"
 adb disconnect "127.0.0.1:${ADB_PORT}" >/dev/null 2>&1 || true

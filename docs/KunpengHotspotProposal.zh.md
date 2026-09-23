@@ -7,7 +7,8 @@
 术语、x86 历史、FMA/`frecpe` 为什么值钱，见 [SoftwareRenderingOptimization.zh.md](SoftwareRenderingOptimization.zh.md)。  
 当前源码怎么分层、一次绘制走哪，见 [src-architecture/overview.zh.md](src-architecture/overview.zh.md)。  
 `SwiftShader.ini` 语法见 [RuntimeConfiguration.zh.md](RuntimeConfiguration.zh.md)。  
-第 0 个工作包的填空表见 [WP0-baseline-template.zh.md](WP0-baseline-template.zh.md)。下文用「第 0 个工作包」「第 1 个工作包」表示顺序；编号 0 表示最先做，不是可以跳过。
+第 0 个工作包的填空表见 [WP0-baseline-template.zh.md](WP0-baseline-template.zh.md)。  
+要把测试环境钉死成「4 核 8 吉字节 + 秒表」，见 [Stopwatch4U8GEnvironment.zh.md](Stopwatch4U8GEnvironment.zh.md)。
 
 请用全称读这些词：
 
