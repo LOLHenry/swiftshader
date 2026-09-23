@@ -210,6 +210,8 @@ CONFIG_ASHMEM=y
 
 还不能换整颗内核时，先走树外模块：把 `binder.c`、`binder_alloc.c`、`binderfs.c` 拼成一个 `binder_linux.ko`，对着 **和 `uname -r` 完全一致** 的 `kernel-devel` 来编。这是试验，不是 redroid 文档承认的 openEuler 路径；编不过或 `insmod` 报版本魔数 / 符号不存在，就停，改走第 3 节换内核。不要关版本检查硬装。
 
+现场若已经具备完整内核源码和 `kernel-devel`（例如 `/usr/src/linux-$(uname -r)/drivers/android/*.c` 与 `/usr/src/kernels/$(uname -r)`），**不要再下载源码包**。完整源码树里 `make modules_prepare` 成功、`auto.conf` 出现 `CONFIG_ANDROID_BINDER_IPC=m`，只说明这份源码能编，不等于正在跑的内核已经有 Binder。不要用改过配置的完整源码树当 `make -C` 的目录（和正在跑的内核对不齐），也不要在那里 `make M=drivers/android`（会拆成多个不能单独加载的 `.ko`）。`.c` 拷到 `/home/redroid-binder-build`，对着 `kernel-devel` 合成一个 `binder_linux.ko`。模块很小，不要 `make -j320`。
+
 仍然不要做：
 
 - 不要 `git checkout origin/openeuler2003` 去编 [redroid-modules](https://github.com/remote-android/redroid-modules)。那一支是 **openEuler 20.03 / Linux 4.19**。
