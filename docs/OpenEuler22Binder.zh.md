@@ -60,7 +60,7 @@ echo "======== 结论 ========"
 if grep -qE '[[:space:]]binder$' /proc/filesystems; then
 	echo "Binder 已经可用。若 redroid 仍起不来，测试机先：sudo setenforce 0"
 else
-	echo "Binder 仍然不可用。不是服务没启动，是这颗内核没提供。下一步换内核或对着 kernel-devel 编模块，见本文第 3、4 节。"
+	echo "Binder 仍然不可用。不是服务没启动，是这颗内核没提供。下一步先跑第 4 节树外编模块；编不过再走第 3 节换内核。"
 fi
 EOF
 ```
@@ -183,64 +183,35 @@ CONFIG_ASHMEM=y
 
 ---
 
-## 4. 暂时不能换整颗内核：对着正在跑的内核编模块
+## 4. 探测已确认没有 Binder：先试树外编模块
 
-openEuler 22 的 5.10 **大于 5.7**。redroid 自己的模块仓库写明：内核 5.7 及以上请改内核，或使用发行版自带的 `modprobe`，不要再用他们给 4.19 准备的那套。
+第 0 节如果打出「Binder 仍然不可用」，含义已经定了：不是服务没启动，是这颗 **Linux 5.10 内核编译时没打开 Android Binder**。上游把 `CONFIG_ANDROID_BINDER_IPC` 写成 **bool**（只能 `y` 或 `n`），所以 **不能** 在内核树里 `make M=drivers/android` 当可加载模块。Ubuntu 能 `modprobe binder_linux`，是因为他们另外打了包；openEuler 22 默认没有这一包。
 
-因此下面两件事不要做：
+还不能换整颗内核时，先走树外模块：把 `binder.c`、`binder_alloc.c`、`binderfs.c` 拼成一个 `binder_linux.ko`，对着 **和 `uname -r` 完全一致** 的 `kernel-devel` 来编。这是试验，不是 redroid 文档承认的 openEuler 路径；编不过或 `insmod` 报版本魔数 / 符号不存在，就停，改走第 3 节换内核。不要关版本检查硬装。
 
-- 不要 `git checkout origin/openeuler2003` 去编 [redroid-modules](https://github.com/remote-android/redroid-modules)。那一支针对的是 **openEuler 20.03 / Linux 4.19**，和 22 的 5.10 对不上。
-- 不要从别的机器、别的内核版本拷 `.ko` 过来 `insmod`。
+仍然不要做：
 
-可以做的是：用 **和 `uname -r` 完全一致** 的 `kernel-devel`，把内核树里现成的 `drivers/android` 编成模块再加载。这要求正在跑的内核当初 **没有** 把 Binder 编成内置（`=y`）；若已经是 `=y`，不能再叠一个同名模块。
+- 不要 `git checkout origin/openeuler2003` 去编 [redroid-modules](https://github.com/remote-android/redroid-modules)。那一支是 **openEuler 20.03 / Linux 4.19**。
+- 不要从别的内核版本拷 `.ko` 过来。
 
-示意（版本号必须换成你机器上的，不要抄死 5.10.0-60.18.0）：
-
-```bash
-# 1. 安装和正在跑的内核同一版本的开发包
-sudo yum install -y gcc make "kernel-devel-uname-r == $(uname -r)"
-
-# 2. 确认头文件目录存在
-ls /usr/src/kernels/"$(uname -r)"
-
-# 3. 若仓库里没有精确匹配的 kernel-devel，先不要继续编。
-#    去 https://repo.openeuler.org/ 对应版本的 update 目录找同名 rpm。
-```
-
-开发包齐了之后，在内核树里打开模块配置再只编 Android 目录（仍然是示意，以你们现场的 `.config` 为准）：
+在宿主机上执行仓库脚本（会写日志 `$HOME/redroid-binder-build/build.log`）：
 
 ```bash
-KDIR=/usr/src/kernels/"$(uname -r)"
-cd "${KDIR}"
-
-# 确认当前配置里 Binder 不是 =y
-grep -E 'CONFIG_ANDROID|CONFIG_ANDROID_BINDER' .config
-
-# 需要时改为模块后准备符号，再只编这一目录
-# CONFIG_ANDROID=y
-# CONFIG_ANDROID_BINDER_IPC=m
-# CONFIG_ANDROID_BINDERFS=m
-# CONFIG_ANDROID_BINDER_DEVICES="binder,hwbinder,vndbinder"
-make modules_prepare
-make M=drivers/android modules
-
-sudo mkdir -p /lib/modules/"$(uname -r)"/extra
-sudo cp drivers/android/*.ko /lib/modules/"$(uname -r)"/extra/
-sudo depmod -a
-sudo modprobe binder_linux devices="binder,hwbinder,vndbinder" || \
-	sudo insmod /lib/modules/"$(uname -r)"/extra/binder.ko
+sudo bash scripts/redroid_4u8g_stopwatch/build_host_binder.sh
 ```
 
-编不过、加载时报版本魔数不对、或提示符号不存在：停在这里，改走第 3 节换内核。不要靠关掉版本检查硬装。
+没有把仓库拷到宿主机时，把该脚本全文贴过去即可。它会：安装匹配的 `kernel-devel` → 本机拷源码，没有再拉内核源码包，再没有就下载 Linux 5.10 官方同名文件 → 编 `binder_linux.ko` → 加载 → 再查 `/proc/filesystems`。
 
-若现场已经有华为云手机容器（Kbox）给 **openEuler 22.03 / Linux 5.10.0** 的补丁包，他们的文档是：从 `/usr/src/kernels/<与 uname -r 一致>` 拷出 `drivers/android` 和 `drivers/staging/android`，打上他们的 `binder.patch` / `ashmem.patch`，再编出 `aosp_binder_linux.ko`。那是另一条已经验证过的「只编模块」路径，前提同样是开发包版本一致。本仓库不附带那些补丁。
-
-编好并加载后，验收仍然是：
+验收仍然是：
 
 ```bash
 grep binder /proc/filesystems
 # 期望：nodev	binder
 ```
+
+出现 `nodev binder` 之后，再去起 redroid。模块方案要写进第 5 节的开机加载。
+
+若现场已经有华为云手机容器（Kbox）给 **openEuler 22.03 / Linux 5.10.0** 的补丁包，用他们编好的 `aosp_binder_linux.ko` 也可以，前提仍是开发包和 `uname -r` 一致。本仓库不附带那些补丁。
 
 ---
 
