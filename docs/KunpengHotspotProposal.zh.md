@@ -462,9 +462,9 @@ WP3 另外需要：**本团队**能编 AArch64 的 SwiftShader，并替换 redro
 
 下面这段话的对象是：**负责这次优化的现场工程师和系统研发**，不是写手机应用的人。
 
-如果你们团队现在还不能自己编译 ARM64 的 SwiftShader，也不能把编出来的 `vulkan.pastel.so` 换进 redroid 系统镜像，那么本期请只做第 0 个和第 1 个工作包：量基线、限制每个容器能看见几颗处理器、限制渲染线程数、降低分辨率和目标帧率。这几件事只改编排和配置文件，不需要重新编译 SwiftShader。
+如果你们团队现在还不能编译出一份给 Android ARM64 用的 `vulkan.pastel.so`，那么本期请只做第 0 个和第 1 个工作包：量基线、限制每个容器能看见几颗处理器、限制渲染线程数、降低分辨率和目标帧率。这几件事只改编排和配置文件。
 
-请不要在计划里写「我们要改 `fmaIsFast` 和 `HasRcpApprox`」。源码改了但镜像里的库换不进去，容器里跑的仍是旧文件，业务上等于什么都没做。等你们有「编译库并写进镜像、重启实例」的能力，再单独做第 3 个工作包。
+一旦你们能编出这份库，**不必重做整个 redroid 系统镜像**。可以先用官方镜像把实例跑起来，再单独替换容器里的 `vulkan.pastel.so` 看效果。步骤见第 11 节。
 
 ---
 
@@ -498,3 +498,24 @@ getprop ro.build.version.incremental
 ```
 
 `ro.hardware.vulkan` 应为 `pastel`。指纹和 incremental 能对上你们用的是哪一次 redroid 构建。SwiftShader 默认不一定把 git 提交打进日志；若编译时开了 `ENABLE_BUILD_VERSION_OUTPUT`，初始化时才会打印版本字符串。
+
+---
+
+## 11. 先跑官方 redroid，再单独替换编好的库
+
+可以。这是验证第 3 个工作包最省事的办法：系统镜像不动，只换软件 Vulkan 驱动这一份文件。
+
+**必须换成 Android 编出来的 `vulkan.pastel.so`。** 不要用电脑上 CMake 编出的 `libvk_swiftshader.so`。目标架构要和实例一致（鲲鹏上是 ARM64）。这份库在 `Android.bp` 里把 LLVM 16 静态链进去了，一般只换这一个文件即可，不必再带一份 LLVM 动态库。
+
+64 位专用镜像通常只改这一处：
+
+`/vendor/lib64/hw/vulkan.pastel.so`
+
+若镜像同时带 32 位应用，还要换 `/vendor/lib/hw/vulkan.pastel.so`。不要去换 `libEGL_angle.so`：那是 OpenGL ES 翻译层，不是这次要对比的对象。
+
+vendor 分区默认只读。两种做法：
+
+1. 启动容器时把宿主上的新库绑到上述路径（改完重启容器即生效）。
+2. 容器已经在跑：把 vendor 重新挂成可写，拷入新文件，改权限，然后重启已经加载旧库的进程。窗口合成器和应用都会加载这份库，只杀应用不够，至少要重启 `surfaceflinger`，更干净的是重启整个容器。
+
+替换前后用第 0 个工作包同一套场景各测一遍。先确认 `getprop ro.hardware.vulkan` 仍是 `pastel`，再对比帧率、处理器占用和第 99 百分位帧时间。若进程起不来，把旧文件拷回去即可回滚。
