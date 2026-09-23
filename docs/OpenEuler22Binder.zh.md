@@ -8,6 +8,8 @@ Binder 不是一个用户态守护进程，也没有 `systemctl start binder` �
 
 **现场不能重启、也没有换内核权限时，只能走树外模块：编 `binder_linux.ko`，当场 `insmod`，不要碰启动项。** 换内核那条路需要重启，这篇里标成「有权限再做」。源码用 openEuler 自己的内核源码包，不要去 GitHub。
 
+整段命令必须放进 `bash -s <<'EOF'` 或脚本文件里执行。不要直接贴进当前登录 shell：脚本里的 `exit` 和 `exec` 会结束登录会话，看起来像突然 logout。下载源码包和编译可能要十几分钟，请先开 `tmux` 或 `screen`，避免 SSH 闲置断线把任务带走。
+
 openEuler 22 常见内核是 Linux 5.10。发行版默认配置通常**不打开** Android Binder。这和 Ubuntu 不一样：Ubuntu 往往只要再装 `linux-modules-extra`，然后 `modprobe binder_linux` 就能用。openEuler 22 不能指望这一步。
 
 ---
