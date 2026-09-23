@@ -148,14 +148,43 @@ for f in ${need_files}; do
 done
 
 if [[ "${have_all}" -eq 0 ]]; then
-	echo "最后一招：从 Linux 5.10 官方树下载同名文件。这和 openEuler 补丁可能不完全一致，编不过就改换整颗内核。"
-	base="https://raw.githubusercontent.com/torvalds/linux/v5.10/drivers/android"
-	cd "${SRC}"
-	for f in ${need_files}; do
-		if [[ ! -s "${f}" ]]; then
-			curl -fsSL -o "${f}" "${base}/${f}" || wget -q -O "${f}" "${base}/${f}" || true
+	# 优先用发行版源码包，不要去 GitHub 拉上游 5.10（现场常被墙，而且和 openEuler 补丁不一致）。
+	krel="${KVER}"
+	krel="${krel%.aarch64}"
+	krel="${krel%.x86_64}"
+	srpm_name="kernel-${krel}.src.rpm"
+	echo "本机和已解开的源码包里都没有 binder.c。改从 openEuler 拉 ${srpm_name}（约 180 兆字节，请写到 /home）。"
+	mkdir -p "${WORK}"
+	cd "${WORK}"
+	if [[ ! -f "${srpm_name}" ]]; then
+		for url in \
+			"https://repo.openeuler.org/openEuler-22.03-LTS-SP4/update/source/Packages/${srpm_name}" \
+			"https://repo.openeuler.org/openEuler-22.03-LTS-SP4/source/Packages/${srpm_name}" \
+			"https://dl-cdn.openeuler.openatom.cn/openEuler-22.03-LTS-SP4/update/source/Packages/${srpm_name}"; do
+			echo "尝试 ${url}"
+			if curl -fL --max-time 600 -o "${srpm_name}.part" "${url}"; then
+				mv "${srpm_name}.part" "${srpm_name}"
+				break
+			fi
+			rm -f "${srpm_name}.part"
+		done
+	fi
+	if [[ -f "${srpm_name}" ]]; then
+		echo "解开 ${srpm_name} 里的 drivers/android"
+		mkdir -p "${WORK}/srpm" "${WORK}/ksrc"
+		(cd "${WORK}/srpm" && rpm2cpio "${WORK}/${srpm_name}" | cpio -idm)
+		tarball="$(find "${WORK}/srpm" -name 'linux-*.tar.*' | head -n 1 || true)"
+		if [[ -n "${tarball}" ]]; then
+			tar -xf "${tarball}" -C "${WORK}/ksrc" --wildcards '*/drivers/android/*'
+			found_android="$(find "${WORK}/ksrc" -path '*drivers/android/binder.c' | head -n 1 || true)"
+			if [[ -n "${found_android}" ]]; then
+				cp -a "$(dirname "${found_android}")/." "${SRC}/"
+			fi
 		fi
-	done
+	else
+		echo "openEuler 源码包也没能下来。不要改去 GitHub。把源码仓库打开后执行：dnf download --source kernel"
+		echo "或手工下载：https://repo.openeuler.org/openEuler-22.03-LTS-SP4/update/source/Packages/${srpm_name}"
+	fi
 fi
 
 echo "源文件清单："

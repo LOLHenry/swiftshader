@@ -213,7 +213,7 @@ WORK=/home/redroid-binder-build sudo -E bash scripts/redroid_4u8g_stopwatch/buil
 
 默认不要写 `/root`（它在已满的根分区上）。内核必须是正在跑的那一颗（例如 `5.10.0-323.0.0.224.oe2203sp4.aarch64`），开发包名是同一串加上 `kernel-devel-`。
 
-没有把仓库拷到宿主机时，把该脚本全文贴过去即可。它会：安装匹配的 `kernel-devel` → 本机拷源码，没有再拉内核源码包，再没有就下载 Linux 5.10 官方同名文件 → 编 `binder_linux.ko` → 加载 → 再查 `/proc/filesystems`。
+`kernel-devel` 通常只有头文件和 Makefile，**没有** `drivers/android/binder.c`。编模块必须有这些 `.c` 文件，但不必去 GitHub 拉上游 Linux 5.10：用和 `uname -r` 一致的 openEuler 内核源码包即可，例如 `kernel-5.10.0-323.0.0.224.oe2203sp4.src.rpm`。没有源码就编不出 `.ko`，换整颗内核同样需要这份源码。
 
 验收仍然是：
 
