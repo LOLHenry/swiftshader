@@ -8,7 +8,8 @@
 当前源码怎么分层、一次绘制走哪，见 [src-architecture/overview.zh.md](src-architecture/overview.zh.md)。  
 `SwiftShader.ini` 语法见 [RuntimeConfiguration.zh.md](RuntimeConfiguration.zh.md)。  
 第 0 个工作包的填空表见 [WP0-baseline-template.zh.md](WP0-baseline-template.zh.md)。  
-要把测试环境钉死成「4 核 8 吉字节 + 秒表」，见 [Stopwatch4U8GEnvironment.zh.md](Stopwatch4U8GEnvironment.zh.md)。
+要把测试环境钉死成「4 核 8 吉字节 + 秒表」，见 [Stopwatch4U8GEnvironment.zh.md](Stopwatch4U8GEnvironment.zh.md)。  
+openEuler 22 宿主机还没有 Android Binder 时，见 [OpenEuler22Binder.zh.md](OpenEuler22Binder.zh.md)。
 
 请用全称读这些词：
 

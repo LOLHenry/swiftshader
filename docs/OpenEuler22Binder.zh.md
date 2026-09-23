@@ -1,0 +1,242 @@
+# 在 openEuler 22 上让内核提供 Android Binder
+
+对象是要把 redroid 跑起来的现场工程师。本文只解决一件事：宿主机 Linux 内核里还没有 Android Binder 时，怎么让系统支持它。
+
+**Android Binder** 是 Android 服务之间通信用的内核机制。redroid 的客户机要靠宿主机内核提供 Binder（现在常见形态是 **Binder 文件系统 binderfs**）。没有它，容器起不来，后面的 4 核 8 吉字节秒表环境也跑不成。
+
+Binder 不是一个用户态守护进程，也没有 `systemctl start binder` 这种服务。要么内核里已经编进去了，要么编成可加载模块再装上，要么换一颗打开了相应配置的内核。
+
+openEuler 22 常见内核是 Linux 5.10。发行版默认配置通常**不打开** Android Binder。这和 Ubuntu 不一样：Ubuntu 往往只要再装 `linux-modules-extra`，然后 `modprobe binder_linux` 就能用。openEuler 22 不能指望这一步。
+
+---
+
+## 1. 先在本机看清楚缺的是什么
+
+在 **openEuler 22 宿主机**上执行，把输出留下来：
+
+```bash
+uname -r
+cat /etc/os-release | head -n 8
+
+# 内核是否已经登记了 Binder 文件系统。成功时应看到一行：nodev	binder
+grep binder /proc/filesystems || echo "还没有 binder 文件系统"
+
+# 是否已经有可加载模块挂着
+lsmod | grep -E 'binder|ashmem' || echo "当前没有加载 binder / ashmem 模块"
+
+# 磁盘上有没有现成的模块文件
+find /lib/modules/"$(uname -r)" -iname '*binder*' -o -iname '*ashmem*' 2>/dev/null
+
+# 这颗正在跑的内核当初有没有把 Android Binder 编进去
+# 有 /proc/config.gz 就用它；否则看 /boot/config-$(uname -r)
+if [[ -r /proc/config.gz ]]; then
+	zgrep -E 'CONFIG_ANDROID|CONFIG_ASHMEM' /proc/config.gz
+elif [[ -r /boot/config-$(uname -r) ]]; then
+	grep -E 'CONFIG_ANDROID|CONFIG_ASHMEM' /boot/config-"$(uname -r)"
+else
+	echo "找不到本机内核配置，请到 /boot 或 /usr/src/kernels/$(uname -r)/.config 再查"
+fi
+```
+
+怎么读结果：
+
+| 你看到的 | 含义 | 下一步 |
+|----------|------|--------|
+| `/proc/filesystems` 已有 `nodev binder` | 内核已经提供 Binder | 不要再改内核。去看第 5 节把加载写进开机，再看第 6 节的安全增强型 Linux |
+| 配置项是 `=y`，但文件系统里没有 binder | 少见，多半是这颗内核和 `/boot` 里的配置对不上 | 先确认 `uname -r` 和你读的那份配置是同一颗内核 |
+| 配置项是 `=m`，并且 `/lib/modules/...` 里有模块文件 | 已经编成模块，只是没装上 | 走第 2 节，直接加载 |
+| 配置项是 `=n`、被注释，或者根本没有这些行；磁盘上也没有模块 | **发行版默认就是这样** | 走第 3 节（官方：换内核）或第 4 节（不换整颗内核，只编模块） |
+
+**匿名共享内存 ashmem** 不是 redroid 16 的硬条件。本仓库的秒表脚本已经写了 `androidboot.use_memfd=true`，用内存文件描述符代替 ashmem。第 3 节里的 `CONFIG_ASHMEM` 可以以后再开。先把 Binder 弄出来。
+
+宿主机上没有 `/dev/binder` 这个字符设备，**不等于** Binder 没好。开了 binderfs 之后，设备节点常常是容器里按需创建的。判断标准是 `grep binder /proc/filesystems` 出现 `nodev binder`，不是宿主机根目录下有没有那个文件。
+
+---
+
+## 2. 模块已经在磁盘上：加载即可
+
+若第 1 节找到了 `binder_linux.ko` 或同类文件：
+
+```bash
+# 一次加载三个逻辑设备：普通 Binder、硬件 Binder、厂商 Binder
+sudo modprobe binder_linux devices="binder,hwbinder,vndbinder"
+
+# 验收
+grep binder /proc/filesystems
+# 期望：nodev	binder
+```
+
+若 `modprobe` 报找不到模块，先确认模块目录和正在跑的内核版本一致：
+
+```bash
+uname -r
+ls /lib/modules/"$(uname -r)"
+```
+
+版本对不上时，加载的是另一颗内核的模块，会失败。不要强行 `insmod` 别人机器上拷来的 `.ko`。
+
+---
+
+## 3. 官方路径：用打开了 Binder 的 5.10 内核
+
+redroid 给 openEuler 的部署说明写得很明确：在 **自定义的 Linux 5.10 长期支持内核**里打开下面这些项，然后安装、重启，让 `uname -r` 变成这颗新内核。
+
+必须打开（Binder）：
+
+```text
+CONFIG_ANDROID=y
+CONFIG_ANDROID_BINDER_IPC=y
+CONFIG_ANDROID_BINDERFS=y
+CONFIG_ANDROID_BINDER_DEVICES="binder,hwbinder,vndbinder"
+```
+
+建议一并打开（编解码和缓冲堆；和秒表软渲染无直接关系，但官方清单里有）：
+
+```text
+CONFIG_DMABUF_HEAPS=y
+CONFIG_DMABUF_HEAPS_SYSTEM=y
+```
+
+可选（本仓库用内存文件描述符，可以暂缓）：
+
+```text
+CONFIG_STAGING=y
+CONFIG_ASHMEM=y
+```
+
+来源：[redroid-doc 的 openEuler 部署说明](https://github.com/remote-android/redroid-doc/blob/master/deploy/openeuler.md)。
+
+内核源码要用 **和现场同一条产品线、同一大版本** 的 openEuler 22 内核，不要随便下一份主线 5.10。常见做法：
+
+1. 安装编译依赖和与 `uname -r` 对应的 `kernel-source` / `kernel-devel`（包名以你们仓库为准）。
+2. 以正在跑的 `/boot/config-$(uname -r)` 为底做 `oldconfig`。
+3. 打开上面那些配置。`CONFIG_ANDROID_BINDER_IPC=y` 表示编进内核镜像，开机即有，不必再 `modprobe`。
+4. 编内核、编模块、安装、配好启动项，重启。
+5. 重启后再跑第 1 节。`grep binder /proc/filesystems` 必须出现 `nodev binder`。
+
+这条路会换内核，影响面最大，但也是 redroid 文档承认的 openEuler 做法。现场若本来就要维护自有内核，优先走这里。
+
+---
+
+## 4. 暂时不能换整颗内核：对着正在跑的内核编模块
+
+openEuler 22 的 5.10 **大于 5.7**。redroid 自己的模块仓库写明：内核 5.7 及以上请改内核，或使用发行版自带的 `modprobe`，不要再用他们给 4.19 准备的那套。
+
+因此下面两件事不要做：
+
+- 不要 `git checkout origin/openeuler2003` 去编 [redroid-modules](https://github.com/remote-android/redroid-modules)。那一支针对的是 **openEuler 20.03 / Linux 4.19**，和 22 的 5.10 对不上。
+- 不要从别的机器、别的内核版本拷 `.ko` 过来 `insmod`。
+
+可以做的是：用 **和 `uname -r` 完全一致** 的 `kernel-devel`，把内核树里现成的 `drivers/android` 编成模块再加载。这要求正在跑的内核当初 **没有** 把 Binder 编成内置（`=y`）；若已经是 `=y`，不能再叠一个同名模块。
+
+示意（版本号必须换成你机器上的，不要抄死 5.10.0-60.18.0）：
+
+```bash
+# 1. 安装和正在跑的内核同一版本的开发包
+sudo yum install -y gcc make "kernel-devel-uname-r == $(uname -r)"
+
+# 2. 确认头文件目录存在
+ls /usr/src/kernels/"$(uname -r)"
+
+# 3. 若仓库里没有精确匹配的 kernel-devel，先不要继续编。
+#    去 https://repo.openeuler.org/ 对应版本的 update 目录找同名 rpm。
+```
+
+开发包齐了之后，在内核树里打开模块配置再只编 Android 目录（仍然是示意，以你们现场的 `.config` 为准）：
+
+```bash
+KDIR=/usr/src/kernels/"$(uname -r)"
+cd "${KDIR}"
+
+# 确认当前配置里 Binder 不是 =y
+grep -E 'CONFIG_ANDROID|CONFIG_ANDROID_BINDER' .config
+
+# 需要时改为模块后准备符号，再只编这一目录
+# CONFIG_ANDROID=y
+# CONFIG_ANDROID_BINDER_IPC=m
+# CONFIG_ANDROID_BINDERFS=m
+# CONFIG_ANDROID_BINDER_DEVICES="binder,hwbinder,vndbinder"
+make modules_prepare
+make M=drivers/android modules
+
+sudo mkdir -p /lib/modules/"$(uname -r)"/extra
+sudo cp drivers/android/*.ko /lib/modules/"$(uname -r)"/extra/
+sudo depmod -a
+sudo modprobe binder_linux devices="binder,hwbinder,vndbinder" || \
+	sudo insmod /lib/modules/"$(uname -r)"/extra/binder.ko
+```
+
+编不过、加载时报版本魔数不对、或提示符号不存在：停在这里，改走第 3 节换内核。不要靠关掉版本检查硬装。
+
+若现场已经有华为云手机容器（Kbox）给 **openEuler 22.03 / Linux 5.10.0** 的补丁包，他们的文档是：从 `/usr/src/kernels/<与 uname -r 一致>` 拷出 `drivers/android` 和 `drivers/staging/android`，打上他们的 `binder.patch` / `ashmem.patch`，再编出 `aosp_binder_linux.ko`。那是另一条已经验证过的「只编模块」路径，前提同样是开发包版本一致。本仓库不附带那些补丁。
+
+编好并加载后，验收仍然是：
+
+```bash
+grep binder /proc/filesystems
+# 期望：nodev	binder
+```
+
+---
+
+## 5. 开机自动加载
+
+模块方案在重启后会丢，除非写进开机加载：
+
+```bash
+# 若发行版模块名是 binder_linux
+echo 'binder_linux' | sudo tee /etc/modules-load.d/binder.conf
+
+# 需要带三个逻辑设备名时，用 modprobe 配置
+sudo tee /etc/modprobe.d/binder.conf >/dev/null <<'EOF'
+options binder_linux devices=binder,hwbinder,vndbinder
+EOF
+```
+
+内置进内核（第 3 节 `=y`）的机器不需要这两份文件。重启后再跑一次第 1 节，确认不是「这次手工加载过、下次开机又没了」。
+
+---
+
+## 6. Binder 有了仍起不来：先看安全增强型 Linux
+
+鲲鹏 + openEuler 22 上，已经出现过：`/proc/filesystems` 里有 binder，`/proc/misc` 里也有 ashmem，redroid 仍然起不来。维护者给出的处理是先关掉安全增强型 Linux（SELinux）。
+
+先确认 Binder 已经在，再试：
+
+```bash
+getenforce
+# 若输出 Enforcing，先在测试机上临时放开：
+sudo setenforce 0
+getenforce
+# 期望：Permissive
+```
+
+能起来之后，不要长期停在「整机关闭」。把 `audit.log` 里和 redroid / docker / binder 相关的拒绝记录留下来，再补一条针对性策略。测试床可以先用宽松模式把秒表环境拉起来。
+
+另外：鲲鹏 920 是 64 位专用核，镜像必须用 `*_64only`，不要拉带 32 位客户机的 redroid 镜像。
+
+---
+
+## 7. 和秒表环境怎么接
+
+1. 第 1 节通过：`grep binder /proc/filesystems` 有 `nodev binder`。
+2. 第 6 节：测试机上安全增强型 Linux 不再挡住容器。
+3. 再执行 [Stopwatch4U8GEnvironment.zh.md](Stopwatch4U8GEnvironment.zh.md) 里的 `scripts/redroid_4u8g_stopwatch/run.sh`。脚本启动前会再查一次 Binder；没有就直接失败，避免容器反复重启却看不出原因。
+4. 共享内存继续用脚本里的 `androidboot.use_memfd=true`，不要因为「还没有 ashmem」停住。
+
+现场自检也可以只跑：
+
+```bash
+scripts/redroid_4u8g_stopwatch/check_host_binder.sh
+```
+
+---
+
+## 8. 明确不要做的事
+
+- 不要去找一个叫 `binder` 的 systemd 服务来「启动」。
+- 不要在 5.10 上使用 redroid-modules 的 openEuler 20.03 / 4.19 分支。
+- 不要把别的内核版本的 `.ko` 拷过来加载。
+- 不要把「宿主机没有 `/dev/binder`」当成失败；看 `/proc/filesystems`。
+- 不要把 ashmem 缺失和 Binder 缺失当成同一件事。秒表环境已经改用内存文件描述符。
+- 不要在对比「换库之前 / 换库之后」的同一周里顺便换内核。换内核是另一份环境，数字不能和旧基线直接比。

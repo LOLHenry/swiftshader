@@ -16,7 +16,7 @@
 | 物理核 / 路数 / NUMA | `lscpu` 里 CPU(s)、Socket(s)、NUMA node(s) | 例：128 核 / 2 路 / 4 节点 |
 | 每核线程数 | `Thread(s) per core` | 鲲鹏常见 1 |
 | 有无 SVE | `lscpu \| grep -i sve`；空则无 | 920 官方通常无 |
-| 宿主机 OS / 内核 | `uname -r` | |
+| 宿主机 OS / 内核 | `uname -r`；openEuler 22 还要记 `grep binder /proc/filesystems` | 必须有 `nodev binder`。没有则先看 [OpenEuler22Binder.zh.md](OpenEuler22Binder.zh.md) |
 | redroid / Android 版本 | 镜像说明或 `getprop ro.build.version.release` | |
 | 整机同时开的实例数 | 编排系统 | |
 | 本份表对应实例 ID | | |

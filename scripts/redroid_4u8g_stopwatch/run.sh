@@ -27,6 +27,12 @@ if [[ "${IMAGE}" == *latest* ]]; then
 	echo "警告：当前仍在使用会移动的标签。请改成带 sha256 的摘要后再做正式对比。" >&2
 fi
 
+if ! grep -q '[[:space:]]binder$' /proc/filesystems 2>/dev/null; then
+	echo "宿主机内核还没有提供 Android Binder（/proc/filesystems 里没有 binder）。" >&2
+	echo "openEuler 22 请先跑 scripts/redroid_4u8g_stopwatch/check_host_binder.sh，步骤见 docs/OpenEuler22Binder.zh.md" >&2
+	exit 1
+fi
+
 if docker inspect "${NAME}" >/dev/null 2>&1; then
 	echo "删除已有同名容器 ${NAME}"
 	docker rm -f "${NAME}" >/dev/null
