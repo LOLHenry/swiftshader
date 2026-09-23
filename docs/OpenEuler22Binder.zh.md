@@ -10,6 +10,71 @@ openEuler 22 常见内核是 Linux 5.10。发行版默认配置通常**不打开
 
 ---
 
+## 0. 先贴这一段探测（不换内核）
+
+在 **openEuler 22 宿主机** root 或 sudo 用户下整段粘贴。它只看现状，并在磁盘上已有模块时尝试加载。加载失败是常见结果，把从 `======== 1` 到 `======== 结论` 的输出留下来即可。
+
+```bash
+bash -s <<'EOF'
+set +e
+echo "======== 1. 机器 ========"
+echo "内核：$(uname -r)"
+. /etc/os-release 2>/dev/null
+echo "发行版：${PRETTY_NAME:-未知}"
+echo "架构：$(uname -m)"
+
+echo
+echo "======== 2. 现在有没有 Binder ========"
+grep -E '[[:space:]]binder$' /proc/filesystems || echo "还没有 binder。"
+
+echo
+echo "======== 3. 已加载模块 / 磁盘上的模块文件 ========"
+lsmod | grep -E 'binder|ashmem' || echo "当前没有加载 binder / ashmem 模块。"
+find /lib/modules/"$(uname -r)" \( -iname '*binder*' -o -iname '*ashmem*' \) -print 2>/dev/null
+echo
+
+echo "======== 4. 内核配置 ========"
+if [[ -r /proc/config.gz ]]; then
+	zgrep -E 'CONFIG_ANDROID|CONFIG_ASHMEM' /proc/config.gz || echo "没有相关行。"
+elif [[ -r /boot/config-$(uname -r) ]]; then
+	grep -E 'CONFIG_ANDROID|CONFIG_ASHMEM' /boot/config-"$(uname -r)" || echo "没有相关行。"
+else
+	echo "找不到本机内核配置。"
+fi
+
+echo
+echo "======== 5. 尝试加载（没有模块时失败是正常的） ========"
+sudo modprobe binder_linux devices="binder,hwbinder,vndbinder"
+echo "modprobe binder_linux 退出码：$?"
+sudo modprobe binder
+echo "modprobe binder 退出码：$?"
+grep -E '[[:space:]]binder$' /proc/filesystems || echo "仍然没有 binder。"
+
+echo
+echo "======== 6. ashmem / 安全增强型 Linux ========"
+grep ashmem /proc/misc || echo "没有 ashmem（秒表环境可用 androidboot.use_memfd=true）。"
+command -v getenforce >/dev/null && echo "getenforce：$(getenforce)" || echo "没有 getenforce。"
+
+echo
+echo "======== 结论 ========"
+if grep -qE '[[:space:]]binder$' /proc/filesystems; then
+	echo "Binder 已经可用。若 redroid 仍起不来，测试机先：sudo setenforce 0"
+else
+	echo "Binder 仍然不可用。不是服务没启动，是这颗内核没提供。下一步换内核或对着 kernel-devel 编模块，见本文第 3、4 节。"
+fi
+EOF
+```
+
+仓库里同一套探测是 `scripts/redroid_4u8g_stopwatch/probe_host_binder.sh`。只看、不尝试加载，用 `check_host_binder.sh`。
+
+怎么读这段输出：
+
+- 第 2 节或第 5 节末尾出现 `nodev binder`：探测通过，可以去跑 redroid。
+- 第 5 节 `modprobe` 报 `not found` / `无法找到模块`，第 3 节也没有 `.ko`，第 4 节没有 `CONFIG_ANDROID_BINDER` 或全是未打开：发行版默认就是这样，接着看第 3 节或第 4 节。
+- 不要因为宿主机没有 `/dev/binder` 判定失败。
+
+---
+
 ## 1. 先在本机看清楚缺的是什么
 
 在 **openEuler 22 宿主机**上执行，把输出留下来：
