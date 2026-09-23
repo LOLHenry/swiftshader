@@ -7,18 +7,15 @@
 术语、x86 历史、FMA/`frecpe` 为什么值钱，见 [SoftwareRenderingOptimization.zh.md](SoftwareRenderingOptimization.zh.md)。  
 当前源码怎么分层、一次绘制走哪，见 [src-architecture/overview.zh.md](src-architecture/overview.zh.md)。  
 `SwiftShader.ini` 语法见 [RuntimeConfiguration.zh.md](RuntimeConfiguration.zh.md)。  
-WP0 基线表（可直接复制填写）见 [WP0-baseline-template.zh.md](WP0-baseline-template.zh.md)。
+第 0 个工作包的填空表见 [WP0-baseline-template.zh.md](WP0-baseline-template.zh.md)。下文用「第 0 个工作包」「第 1 个工作包」表示顺序；编号 0 表示最先做，不是可以跳过。
 
-**WP** 是 Work Package 的缩写，中文叫 **工作包**：把一件大事拆成可以独立验收的一小段。WP0、WP1…只是编号，0 最先做，不是「优先级 0 可以跳过」。没有 WP0 那张填好的表，后面的改动无法证明变快了。
+请用全称读这些词：
 
-文中第一次出现的缩写：
-
-| 缩写 | 全称 | 人话 |
-|------|------|------|
-| **AHB** | AHardwareBuffer | Android 用来在进程之间递「一块已经画好的图」的共享缓冲。redroid 上往往是一块 memfd。应用画完要拷进去，SurfaceFlinger 再读出来叠层。提案里说的「AHB 拷贝 / 按行 memcpy」就是这次递交，**还不是**在算着色器。 |
-| HWC | Hardware Composer | 真显卡/显示控制器上的「硬件叠层」。没有 GPU 时通常不可用，合成只好再走 GLES。 |
-| JIT | 即时编译 | 跑着的时候才把着色器变成 CPU 机器码。 |
-| MSAA | 多重采样抗锯齿 | 每个像素算多次再平均，软渲染上很贵。 |
+- **工作包**：一件可以单独验收的工作。
+- **Android 硬件共享图缓冲（AHardwareBuffer）**：应用把画好的图交给窗口合成器时用的共享内存。redroid 上往往是一块 memfd。这次按行拷贝是搬运，不是在跑着色器。
+- **硬件合成器（Hardware Composer）**：真显卡上的叠层硬件。没有图形处理器时通常不可用。
+- **即时编译**：程序运行时才把着色器变成处理器机器码。
+- **多重采样抗锯齿**：每个像素算多次再平均，用软件画时很贵。
 
 ---
 
@@ -393,7 +390,8 @@ JIT 第一次碰到某种「着色器 + 混合 + 格式」会编译，表现为�
 
 ## 6. 建议的人员与阅读顺序
 
-不需要先读完一本图形学。需要会的是：Linux 上看 CPU、在宿主机对容器 pid 跑 `perf`、读几行 ARM 汇编、能把 AArch64 so 打进镜像、做 A/B。WP3 不是「改两行 bool」。
+不需要先读完一本图形学。WP0/WP1 需要会：Linux 上看 CPU、在宿主机对容器 pid 跑 `perf`、改编排和 ini。  
+WP3 另外需要：**本团队**能编 AArch64 的 SwiftShader，并替换 redroid 镜像里的 so。做不到就先别排 WP3。WP3 也不是「改两行 bool」。
 
 | 角色 | 负责 | 先读 |
 |------|------|------|
@@ -458,14 +456,45 @@ JIT 第一次碰到某种「着色器 + 混合 + 格式」会编译，表现为�
 | WP0 | 能，但 `perf` 容易采错进程 | 容器 pid ≠ 宿主机 pid；P99 可能没有现成脚本；AHB 不是符号名，表上看成 memcpy | 用 [WP0 模板](WP0-baseline-template.zh.md)；perf 打宿主 pid；AHB = 递交共享图的那次拷贝 |
 | WP1 | **最可操作，也是最大杠杆** | ini 只认 cwd；**两个进程**各一份 ThreadCount | 对应用和 surfaceflinger 都确认 cwd；公式按两个进程加总 |
 | WP2 | 中等 | 吐汇编 / SPIR-V profiler 要重编 so | 第一周只做 maps + perf 分类；吐汇编另开迭代 |
-| WP3 | 初稿写轻了 | `fmaIsFast` 可能零收益；只改 `HasRcpApprox` 会 `UNREACHABLE`；要有 AArch64 进镜像的流水线 | 先反汇编；rcp 要 **实现** `RcpApprox`，不是改 bool |
+| WP3 | 初稿写轻了 | `fmaIsFast` 可能零收益；只改 `HasRcpApprox` 会崩；新 so 必须换进 redroid 镜像才能在现网生效 | 先反汇编；rcp 要 **实现** `RcpApprox`；没有换 so 的能力就先不做 WP3 |
 | WP4 | 只在有汇编证据时 | 容易按手册刷指令 | 没有 WP2 证据就不开工 |
 | WP5 | 能 | 缓存不跨容器 | 启动脚本跑一遍目标 APK |
 
-**这句话是说给做本项目的人（现场 + 研发）的，不是说给应用开发的。**
+下面这段话的对象是：**负责这次优化的现场工程师和系统研发**，不是写手机应用的人。
 
-- **「进镜像」**：你们能不能自己编一份 ARM64 的 SwiftShader，并替换 redroid 镜像里那份 `.so`。这是改 C++ 之后，新代码要出现在容器里的唯一办法。
-- **「配额」**：给每个 redroid 限核能看见几核（cgroup / cpuset），再配上 `ThreadCount`。这是 WP1，改编排和 ini，**不用编 SwiftShader**。
-- **「停在配额和分辨率」**：如果你们暂时还不能换镜像里的 so，**本期就只做 WP0 和 WP1**——限核、限线程、降低分辨率/目标帧率。不要在计划里写「我们要改 `fmaIsFast` / `HasRcpApprox`」，因为那两处改完也部署不进去，等于空头支票。
+如果你们团队现在还不能自己编译 ARM64 的 SwiftShader，也不能把编出来的 `vulkan.pastel.so` 换进 redroid 系统镜像，那么本期请只做第 0 个和第 1 个工作包：量基线、限制每个容器能看见几颗处理器、限制渲染线程数、降低分辨率和目标帧率。这几件事只改编排和配置文件，不需要重新编译 SwiftShader。
 
-能换 so 之后，再单独立项 WP3。WP0+WP1 不依赖编库，现在就可以做。
+请不要在计划里写「我们要改 `fmaIsFast` 和 `HasRcpApprox`」。源码改了但镜像里的库换不进去，容器里跑的仍是旧文件，业务上等于什么都没做。等你们有「编译库并写进镜像、重启实例」的能力，再单独做第 3 个工作包。
+
+---
+
+## 10. redroid 16 默认的 SwiftShader 动态库从哪里来、版本是什么
+
+**不是这份 GitHub 仓库（LOLHenry/swiftshader）里的代码。** 官方镜像 `redroid/redroid:16.0.0-latest` 在编译 Android 16 产品时，把 AOSP 模块 `vulkan.pastel` 打进 vendor 分区。
+
+依据：
+
+1. redroid 设备配置分支 `redroid-16.0.0` 的 `redroid.mk` 写明要打包 `vulkan.pastel`，以及 ANGLE 的 `libEGL_angle`、`libGLESv1_CM_angle`、`libGLESv2_angle`。见 [device_redroid/redroid.mk](https://github.com/remote-android/device_redroid/blob/redroid-16.0.0/redroid.mk)。
+2. `vulkan.pastel` 是 AOSP 的 Soong 模块名，源码在 `platform/external/swiftshader`，编译产物一般是 `/vendor/lib64/hw/vulkan.pastel.so`。
+3. 无图形处理器时，`vendor_redroid` 的 `gpu_config.sh` 会执行 `setprop ro.hardware.vulkan pastel`，于是加载器去打开 `vulkan.pastel.so`。同一份脚本里，若存在 `libEGL_angle.so`，OpenGL ES 走 ANGLE，ANGLE 再调用上面的 Vulkan 库。
+
+**版本没有「SwiftShader 5.0」这种产品号。** 能说清的身份是：
+
+| 身份 | 值 |
+|------|-----|
+| 产品 | Android 16 里的软件 Vulkan 驱动，模块名 `vulkan.pastel` |
+| 实现的图形接口 | Vulkan 1.3（AOSP 树里的 README） |
+| 即时编译后端 | 链上 `libLLVM16_swiftshader`，即 LLVM 16 |
+| AOSP `android-16.0.0_r1` 打进 `external/swiftshader` 的提交 | `3e88896bd7e9a739943c01168024da7a11b61241`（说明是 25Q2 分支上对上游 `889a77bec5ac` 的一次 roll） |
+| 官方 Docker 标签 | `redroid/redroid:16.0.0-latest` 或 `16.0.0_64only-latest`；具体安全补丁号以镜像构建当天所用的 AOSP 标签为准，可能新于 r1 |
+
+你们容器里的真实文件请当场核对，不要只信文档：
+
+```bash
+getprop ro.hardware.vulkan
+ls -l /vendor/lib64/hw/vulkan.pastel.so
+getprop ro.build.fingerprint
+getprop ro.build.version.incremental
+```
+
+`ro.hardware.vulkan` 应为 `pastel`。指纹和 incremental 能对上你们用的是哪一次 redroid 构建。SwiftShader 默认不一定把 git 提交打进日志；若编译时开了 `ENABLE_BUILD_VERSION_OUTPUT`，初始化时才会打印版本字符串。

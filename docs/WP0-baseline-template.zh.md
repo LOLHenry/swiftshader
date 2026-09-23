@@ -1,6 +1,6 @@
-# WP0 基线表（填空模板）
+# 第 0 个工作包：基线填空表
 
-**WP** = Work Package，工作包。WP0 是第 0 个工作包：只记录「现在有多慢、时间花在哪」，不改产品。
+第 0 个工作包只记录「现在有多慢、时间花在哪」，不改产品。
 
 用法：复制本页，每台服务器 × 每个套餐 × 每条场景填一份。同一操作路径录 3 次，数字取中位数。改 ThreadCount / 分辨率 / 指令之前各存一份，否则后面无法验收。
 
@@ -99,7 +99,7 @@ grep swiftshader /proc/<host_pid>/maps
 - [ ] ANGLE 翻译
 - [ ] `swiftshader_jit`（CPU 在算像素，**应用进程**）
 - [ ] `swiftshader_jit`（CPU 在算像素，**surfaceflinger 进程**）
-- [ ] AHB 拷贝（AHardwareBuffer：应用把画好的图按行 memcpy 进共享缓冲，还不是叠层）
+- [ ] 应用把画好的图按行拷进 Android 硬件共享图缓冲（还不是窗口合成器在叠层）
 - [ ] 每容器约 16 条忙线程 / 整机打满（先做 WP1）
 
 ## F. 附件清单
