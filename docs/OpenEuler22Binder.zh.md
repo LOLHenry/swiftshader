@@ -155,7 +155,7 @@ openEuler 的 Linux 5.10 把 `CONFIG_ANDROID_BINDER_IPC` 写成 **bool**：编�
 怎么办，只有两条路：
 
 1. **不能重启时（现场默认）**：无视这份 bool，把 `binder.c` 等文件在树外拼成 `binder_linux.ko`，当场 `insmod`。不改启动项、不换 `uname -r`。编不过或加载报版本魔数、未知符号，这台机器在重启权限下来之前做不了 Binder。见第 4 节。
-2. **有换内核和重启权限时**：用同一条 openEuler 5.10 源码，把上面四个配置改成 `y`，编出新内核，安装并重启。见第 3.1 节。
+2. **有换内核和重启权限时**：用同一条 openEuler 5.10 源码，把上面四个配置改成 `y`，编出新内核，安装并重启。配置项见第 3.1 节；**鲲鹏 + openEuler 22.03 SP4 / 323 现场已跑通的逐步命令见第 3.2 节**。
 
 不要尝试把正在跑的内核的 `.config` 改成 `=m` 再 `make M=drivers/android`。bool 开关不会因此变成模块。
 
@@ -239,7 +239,265 @@ bash /home/build_binder_kernel.sh
 
 脚本结束且默认启动仍是 323 之后，打开 iBMC 控制台，再把新内核设为默认并重启。失败就在控制台选回 323。重启后再跑第 1 节：`grep binder /proc/filesystems` 必须出现 `nodev binder`。`uname -r` 会带 `binder`，第 4 节的树外模块就不必再加载。
 
-这条路会换内核，影响面最大，但也是 redroid 文档承认的 openEuler 做法。现场若本来就要维护自有内核，优先走这里。
+这条路会换内核，影响面最大，但也是 redroid 文档承认的 openEuler 做法。现场若本来就要维护自有内核，优先走这里。**323 上已经跑通的逐步命令以第 3.2 节为准。**
+
+---
+
+## 3.2 现场已跑通：323 重编带 Binder 的内核
+
+对象：openEuler 22.03 LTS-SP4、aarch64、正在跑 `5.10.0-323.0.0.224.oe2203sp4.aarch64`。下面是已经开机进到新内核、`/proc/filesystems` 出现 `nodev binder` 的那一套，按执行顺序列出。树外模块、官网下 `src.rpm`、把未压缩 `Image` 直接当 `vmlinuz`，都不在这条成功路径里。
+
+约定：
+
+| 名字 | 值 | 含义 |
+|------|----|------|
+| 旧内核 / 回退 | `5.10.0-323.0.0.224.oe2203sp4.aarch64` | 发行版正在跑的内核，全程保留 |
+| 源码包目录 | `/usr/src/linux-5.10.0-323.0.0.224.oe2203sp4.aarch64` | `yum` 装的 `kernel-source`，不要在这里 `make` |
+| 工作源码 | `/home/linux-5.10.0-323.0.0.224.oe2203sp4.aarch64` | 拷贝出来编，弄脏了可删 |
+| 编译输出 | `/home/kbuild` | `O=` 目录，目标文件在这里 |
+| 新内核 | `5.10.0-323.0.0.224.oe2203sp4-binder.aarch64` | 发布名必须同时带 `323` 和 `binder` |
+
+整段长时间命令放进 `tmux`。不要把带 `exit` 的脚本贴进登录 shell。`/home` 至少留约 20 吉字节。不要动正在跑的 `kernel` / `kernel-devel`。
+
+### 第 1 步：确认缺的是内核能力
+
+```bash
+uname -r
+grep binder /proc/filesystems || echo "还没有 binder"
+```
+
+- `uname -r`：必须是 `5.10.0-323.0.0.224.oe2203sp4.aarch64`。版本不对不要套用后面的包名。
+- `grep binder /proc/filesystems`：没有 `nodev binder` 才需要换内核。已经有了就停，不要重编。
+
+### 第 2 步：从软件源重装同一颗干净源码
+
+现场若在 `/usr/src` 里做过 `make` 或改过 `drivers/android/Makefile`，不要 `yum reinstall`（额外文件删不掉）。
+
+```bash
+yum remove -y kernel-source-5.10.0-323.0.0.224.oe2203sp4.aarch64
+rm -rf /usr/src/linux-5.10.0-323.0.0.224.oe2203sp4.aarch64
+yum install -y kernel-source-5.10.0-323.0.0.224.oe2203sp4.aarch64
+rm -rf /home/linux-5.10.0-323.0.0.224.oe2203sp4.aarch64 /home/kbuild
+```
+
+- `yum remove`：卸掉已安装的源码包。
+- `rm -rf /usr/src/linux-…`：删掉 `make` 留下、包管理器不管的文件。
+- `yum install`：再装**同一颗** 323，不要装成别的版本。
+- `rm -rf /home/linux-… /home/kbuild`：清掉上次失败的工作副本。
+
+验收：
+
+```bash
+rpm --verify kernel-source-5.10.0-323.0.0.224.oe2203sp4.aarch64
+ls /usr/src/linux-$(uname -r)/Makefile
+ls /usr/src/linux-$(uname -r)/drivers/android/binder.c
+head -n 8 /usr/src/linux-$(uname -r)/drivers/android/Makefile
+```
+
+- `rpm --verify`：没有输出才干净。
+- `Makefile`、`binder.c`：源码树完整。
+- Android `Makefile` 必须是 `binder.o binder_alloc.o`，不能再出现 `binder_linux`。
+
+### 第 3 步：开 tmux，把源码拷到 /home
+
+```bash
+tmux ls
+tmux new -s kbuild
+```
+
+- `tmux ls`：看有没有已有会话。
+- `tmux new -s kbuild`：新建。已有则 `tmux attach -t kbuild`。
+- 离开不停任务：`Ctrl-b` 再按 `d`。
+
+```bash
+SRC_PKG=/usr/src/linux-5.10.0-323.0.0.224.oe2203sp4.aarch64
+SRC=/home/linux-5.10.0-323.0.0.224.oe2203sp4.aarch64
+OUT=/home/kbuild
+mkdir -p "$OUT"
+if command -v rsync >/dev/null; then
+	rsync -a "$SRC_PKG/" "$SRC/"
+else
+	mkdir -p "$SRC"
+	cp -a "$SRC_PKG/." "$SRC/"
+fi
+```
+
+- 拷到 `/home`：根分区往往被 Docker 占满；也不要在 rpm 拥有的 `/usr/src` 里 `make`。
+- 本机 `cp` 若被别成 `cp -i`，覆盖时用 `\cp -f`。
+
+若工作副本里已经有上次 `make` 的痕迹：
+
+```bash
+make -C "$SRC" mrproper
+```
+
+- 只清 `/home` 这份拷贝，不动 `/usr/src` 里的软件包。
+
+### 第 4 步：版本号只加 -binder
+
+```bash
+rm -f "$SRC"/localversion "$SRC"/localversion-*
+EV=$(sed -n 's/^EXTRAVERSION[[:space:]]*=[[:space:]]*//p' "$SRC/Makefile" | tr -d '[:space:]')
+echo "EXTRAVERSION=$EV"
+echo '-binder' > "$SRC/localversion"
+```
+
+- openEuler 的 `Makefile` 里 `EXTRAVERSION` 已带 `323.0.0.224.oe2203sp4.aarch64`。
+- 再写 `localversion` 为 `-binder`，发布名才会是 `5.10.0-323.0.0.224.oe2203sp4-binder.aarch64`。
+- 只写 `-binder`、却把 `EXTRAVERSION` 弄丢，会变成以前那种无法启动的 `5.10.0-binder`。
+
+### 第 5 步：以正在跑的 323 配置为底，只开 Binder
+
+```bash
+cp -f /boot/config-5.10.0-323.0.0.224.oe2203sp4.aarch64 "$OUT/.config"
+"$SRC/scripts/config" --file "$OUT/.config" --enable ANDROID --enable ANDROID_BINDER_IPC --enable ANDROID_BINDERFS
+"$SRC/scripts/config" --file "$OUT/.config" --set-str ANDROID_BINDER_DEVICES "binder,hwbinder,vndbinder"
+"$SRC/scripts/config" --file "$OUT/.config" --disable ANDROID_BINDER_IPC_SELFTEST
+"$SRC/scripts/config" --file "$OUT/.config" --disable GCC_PLUGINS
+command -v pahole >/dev/null || "$SRC/scripts/config" --file "$OUT/.config" --disable DEBUG_INFO_BTF
+make -C "$SRC" O="$OUT" olddefconfig
+```
+
+- `/boot/config-323`：和正在跑的内核对齐，只改 Binder，不从零选配置。
+- `ANDROID*`：编进内核镜像（`=y`）。开机即有 binderfs，不必 `modprobe`。
+- `GCC_PLUGINS=n`：本机 GCC 插件头文件常和对发行版时不一致，会停在 `(NEW)` 提问或编失败。Binder 不依赖插件。试验内核先关。
+- 没有 `pahole` 时关 `DEBUG_INFO_BTF`：否则链接阶段报 BTF 失败。
+- `olddefconfig`：其余新符号用默认值，不再一项项问。
+
+若 `make` 仍停在 `GCC plugins (GCC_PLUGINS) [Y/n/?] (NEW)`：输入 `n`，或 `Ctrl-C` 后再跑一遍上面的 `scripts/config --disable GCC_PLUGINS` 和 `olddefconfig`。
+
+### 第 6 步：补模块签名材料
+
+发行版 `.config` 要 `certs/signing_key.pem`，`kernel-source` 不带私钥。
+
+```bash
+mkdir -p "$OUT/certs" "$SRC/certs"
+cat > "$OUT/certs/x509.genkey" <<'EOF'
+[ req ]
+default_bits = 4096
+distinguished_name = req_distinguished_name
+prompt = no
+string_mask = utf8only
+x509_extensions = myexts
+
+[ req_distinguished_name ]
+CN = Build time autogenerated kernel key
+
+[ myexts ]
+basicConstraints=critical,CA:FALSE
+keyUsage=digitalSignature
+subjectKeyIdentifier=hash
+authorityKeyIdentifier=keyid
+EOF
+\cp -f "$OUT/certs/x509.genkey" "$SRC/certs/x509.genkey"
+openssl req -new -nodes -utf8 -sha256 -days 36500 -batch -x509 \
+	-config "$OUT/certs/x509.genkey" \
+	-outform PEM -out "$OUT/certs/signing_key.pem" \
+	-keyout "$OUT/certs/signing_key.pem"
+grep -E 'CONFIG_SYSTEM_TRUSTED_KEYS|CONFIG_SYSTEM_REVOCATION_KEYS|CONFIG_MODULE_SIG_KEY' "$OUT/.config"
+```
+
+- `x509.genkey`：openssl 生成密钥用的模板。缺了会报 `Can't open certs/x509.genkey`。
+- `signing_key.pem`：这颗试验内核自己的模块签名密钥。
+- 现场成功时这三项是：`MODULE_SIG_KEY="certs/signing_key.pem"`，`SYSTEM_TRUSTED_KEYS=""`，`SYSTEM_REVOCATION_KEYS=""`。若后两项指向不存在的文件，改成空再 `olddefconfig`。
+
+编到一半才发现缺密钥：**不要重跑会 `rm -rf /home/kbuild` 的整份脚本**，只补证书再续 `make`。
+
+### 第 7 步：编译
+
+```bash
+make -s -C "$SRC" O="$OUT" kernelrelease
+make -C "$SRC" O="$OUT" -j64 Image modules
+ls -l "$OUT/arch/arm64/boot/Image"
+cat "$OUT/include/config/kernel.release"
+grep -E 'CONFIG_ANDROID_BINDER_IPC|CONFIG_ANDROID_BINDERFS' "$OUT/.config"
+```
+
+- `kernelrelease`：动手编之前先看发布名。必须带 `323` 和 `binder`。
+- `Image modules`：编内核镜像和模块。`O=$OUT` 把产物写到 `/home/kbuild`。
+- `-j64`：并行度，可按核数改。不要在源码目录裸 `make`。
+- 现场成功时：`Image` 约 35MB；发布名 `5.10.0-323.0.0.224.oe2203sp4-binder.aarch64`；`CONFIG_ANDROID_BINDER_IPC=y`、`CONFIG_ANDROID_BINDERFS=y`。
+
+### 第 8 步：安装，默认启动仍指向 323
+
+```bash
+OLD=/boot/vmlinuz-5.10.0-323.0.0.224.oe2203sp4.aarch64
+KREL=$(cat "$OUT/include/config/kernel.release")
+make -C "$SRC" O="$OUT" modules_install
+gzip -9 -c "$OUT/arch/arm64/boot/Image" > /boot/vmlinuz-"$KREL"
+chmod 755 /boot/vmlinuz-"$KREL"
+file /boot/vmlinuz-"$KREL"
+dracut -f --kver "$KREL" /boot/initramfs-"$KREL".img
+grubby --remove-kernel=/boot/vmlinuz-"$KREL" 2>/dev/null || true
+grubby --add-kernel=/boot/vmlinuz-"$KREL" \
+	--title="openEuler ${KREL} (binder gzip)" \
+	--initrd=/boot/initramfs-"$KREL".img \
+	--copy-default
+grubby --set-default "$OLD"
+```
+
+- `modules_install`：模块装到 `/lib/modules/$KREL`，并跑 `depmod`。
+- `gzip -9 -c Image`：发行版 `vmlinuz` 是 gzip 包着的 `Image`。直接拷未压缩 `Image` 会在 EFIstub 对不上。
+- `file`：应看到 `gzip compressed data, was "Image"`。现场新品约 11MB，和 323 的 `vmlinuz` 同一量级。
+- `dracut`：按新内核版本生成初始化内存盘。
+- `grubby --copy-default`：启动参数（`root=`、`console=` 等）从正在跑的 323 拷过来，避免早期无控制台像挂死。
+- `grubby --set-default`：默认仍是旧 323。没打开 iBMC 之前不要改默认。
+
+验收（此时还未重启，`uname -r` 仍是旧的）：
+
+```bash
+uname -r
+grubby --default-kernel
+grubby --info=/boot/vmlinuz-"$KREL"
+file /boot/vmlinuz-"$KREL"
+ls -l /boot/vmlinuz-"$KREL" "$OLD" /boot/initramfs-"$KREL".img
+```
+
+`uname -r` 和默认启动都必须还是 `…323.0.0.224.oe2203sp4.aarch64`。`args` 应和 323 接近。
+
+### 第 9 步：iBMC 里切到新内核并重启
+
+打开 iBMC 能看到 GRUB 之后：
+
+```bash
+grubby --set-default /boot/vmlinuz-5.10.0-323.0.0.224.oe2203sp4-binder.aarch64
+grubby --default-kernel
+reboot
+```
+
+- 没有控制台不要 `reboot`。失败就在 GRUB 选回 323。
+
+进来后：
+
+```bash
+uname -r
+grep binder /proc/filesystems
+```
+
+期望：
+
+```text
+5.10.0-323.0.0.224.oe2203sp4-binder.aarch64
+nodev	binder
+```
+
+有 `nodev binder` 就可以去跑 redroid / 秒表脚本。不必再 `insmod` 树外模块。测试机上若 SELinux 仍挡住容器，见第 6 节。
+
+失败回退（在 iBMC 选回 323 之后）：
+
+```bash
+grubby --set-default /boot/vmlinuz-5.10.0-323.0.0.224.oe2203sp4.aarch64
+```
+
+### 不要做
+
+- 不要在 `/usr/src` 里 `make`。
+- 不要把未压缩 `Image` 拷成 `vmlinuz`。
+- 不要让发布名变成 `5.10.0-binder`。
+- 不要 `yum reinstall kernel-source` 当「恢复干净」（额外文件还在）。
+- 不要在编到一半时重跑会清空 `/home/kbuild` 的脚本。
+- 不要用 `/boot/vmlinuz-*binder*` 一把删除；会把这颗已成功的 `323-binder` 也删掉。只删没有 `323` 的旧试验项。
+- 不要去 GitHub 拉主线 5.10 或 redroid-modules 的 4.19 分支。
 
 ---
 
