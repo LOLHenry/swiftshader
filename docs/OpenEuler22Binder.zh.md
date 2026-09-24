@@ -190,17 +190,28 @@ CONFIG_ASHMEM=y
 
 来源：[redroid-doc 的 openEuler 部署说明](https://github.com/remote-android/redroid-doc/blob/master/deploy/openeuler.md)。
 
-内核源码要用 **和现场同一条产品线、同一大版本** 的 openEuler 22 内核，不要随便下一份主线 5.10。常见做法：
+内核源码要用 **和现场同一条产品线、同一大版本** 的 openEuler 22 内核，不要随便下一份主线 5.10。用软件源装，不要去官网下 `src.rpm`：
 
-1. 安装编译依赖和与 `uname -r` 对应的 `kernel-source` / `kernel-devel`（包名以你们仓库为准）。
-2. 以正在跑的 `/boot/config-$(uname -r)` 为底做 `oldconfig`。
-3. 打开上面那些配置。`CONFIG_ANDROID_BINDER_IPC=y` 表示编进内核镜像，开机即有，不必再 `modprobe`。
-4. 编内核、编模块、安装、配好启动项，重启。
-5. 重启后再跑第 1 节。`grep binder /proc/filesystems` 必须出现 `nodev binder`。
+```bash
+uname -r
+yum whatprovides kernel-source
+yum install -y "kernel-source-uname-r == $(uname -r)"
+# 若上面的提供名不存在，改用 whatprovides 列出的全名，例如：
+# yum install -y kernel-source-5.10.0-323.0.0.224.oe2203sp4.aarch64
+```
+
+现场 323 已确认：这个包装到 `/usr/src/linux-$(uname -r)/`，里面有 `Makefile` 和 `drivers/android/binder.c`。`Already installed` 就不用再装。`kernel-source` 是解开的源码树，不是 `src.rpm`。
+
+不要在 `/usr/src` 里 `make`（会弄脏软件包文件，也容易把根分区写满）。工作目录放 `/home`。以正在跑的 `/boot/config-$(uname -r)` 为底，只打开上面四项，编完把 `Image` 打成和发行版一样的 gzip `vmlinuz`，用 `dracut` 生成初始化内存盘，`grubby --copy-default` 加启动项，**默认启动仍指向正在跑的 323**。仓库脚本一次做完这些：
+
+```bash
+# tmux 里跑，不要直接贴进登录 shell
+bash scripts/redroid_4u8g_stopwatch/build_binder_kernel.sh
+```
+
+脚本结束且默认启动仍是 323 之后，打开 iBMC 控制台，再把新内核设为默认并重启。失败就在控制台选回 323。重启后再跑第 1 节：`grep binder /proc/filesystems` 必须出现 `nodev binder`。`uname -r` 会带 `binder`，第 4 节的树外模块就不必再加载。
 
 这条路会换内核，影响面最大，但也是 redroid 文档承认的 openEuler 做法。现场若本来就要维护自有内核，优先走这里。
-
-编内核请把工作目录放在 `/home`（根分区往往已被 Docker 占满）。源码包用和 `uname -r` 一致的那一颗，例如 `kernel-5.10.0-323.0.0.224.oe2203sp4.src.rpm`。以正在跑的 `/boot/config-$(uname -r)` 为底打开上面四项，编完安装后**保留旧内核当启动回退**，再重启。重启后 `uname -r` 会变，第 4 节的树外模块就不必再加载。
 
 ---
 
@@ -209,6 +220,8 @@ CONFIG_ASHMEM=y
 第 0 节如果打出「Binder 仍然不可用」，含义已经定了：不是服务没启动，是这颗 **Linux 5.10 内核编译时没打开 Android Binder**。上游把 `CONFIG_ANDROID_BINDER_IPC` 写成 **bool**（只能 `y` 或 `n`），所以 **不能** 在内核树里 `make M=drivers/android` 当可加载模块。Ubuntu 能 `modprobe binder_linux`，是因为他们另外打了包；openEuler 22 默认没有这一包。
 
 还不能换整颗内核时，先走树外模块：把 `binder.c`、`binder_alloc.c`、`binderfs.c` 拼成一个 `binder_linux.ko`，对着 **和 `uname -r` 完全一致** 的 `kernel-devel` 来编。这是试验，不是 redroid 文档承认的 openEuler 路径；编不过或 `insmod` 报版本魔数 / 符号不存在，就停，改走第 3 节换内核。不要关版本检查硬装。
+
+模块后期处理报 `can_nice`、`task_work_add`、`security_binder_*` 未定义，和「内核符号表里看得到这些名字」不是一回事。符号表里有，只说明内核镜像里有这份函数；模块只能调用**导出表**里的符号。这颗内核把 Binder 当成内置专用，安全钩子往往**不导出**。带 GPL 字样的导出还要求模块声明 GPL 许可。不要关版本检查。处理办法：模块声明 GPL；对未导出的安全钩子在模块内做「直接放行」的本地实现；对已导出但后期处理仍抱怨的符号，先看是不是许可证没声明。仍对不上才是这条路的终点。
 
 现场若已经具备完整内核源码和 `kernel-devel`（例如 `/usr/src/linux-$(uname -r)/drivers/android/*.c` 与 `/usr/src/kernels/$(uname -r)`），**不要再下载源码包**。完整源码树里 `make modules_prepare` 成功、`auto.conf` 出现 `CONFIG_ANDROID_BINDER_IPC=m`，只说明这份源码能编，不等于正在跑的内核已经有 Binder。不要用改过配置的完整源码树当 `make -C` 的目录（和正在跑的内核对不齐），也不要在那里 `make M=drivers/android`（会拆成多个不能单独加载的 `.ko`）。`.c` 拷到 `/home/redroid-binder-build`，对着 `kernel-devel` 合成一个 `binder_linux.ko`。模块很小，不要 `make -j320`。
 
