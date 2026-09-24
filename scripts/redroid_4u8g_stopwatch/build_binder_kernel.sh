@@ -35,6 +35,7 @@ test -f "$PKG/drivers/android/binder.c"
 need gcc
 need make
 need gzip
+need openssl
 need dracut
 need grubby
 
