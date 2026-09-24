@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# 用已安装的 kernel-source 编一颗带 Binder 的内核并加启动项。
-# 不在 /usr/src 里编译，不重启，不改默认启动（仍指向正在跑的 323）。
-# tmux 里执行：bash /path/to/build_binder_kernel.sh
+# 用本机已装好的 kernel-source 编一颗带 Binder 的内核并加启动项。
+# 离线可跑：不再 yum / curl。不在 /usr/src 里 make。不改默认启动。
+# tmux 里：bash /home/build_binder_kernel.sh
 
 set -eu
 KNOW=5.10.0-323.0.0.224.oe2203sp4.aarch64
@@ -13,6 +13,13 @@ OLD_VMLINUZ=/boot/vmlinuz-${KNOW}
 CC=/usr/bin/gcc
 test -x "$CC" || CC=$(command -v gcc)
 
+need() {
+	command -v "$1" >/dev/null 2>&1 || {
+		echo "没有 $1，停。离线环境请先确认本机已装这个命令。"
+		exit 1
+	}
+}
+
 if [ "$(id -u)" -ne 0 ]; then
 	echo "要用 root 跑。"
 	exit 1
@@ -23,6 +30,13 @@ if [ "$(uname -r)" != "$KNOW" ]; then
 fi
 test -f "$OLD_VMLINUZ"
 test -f /boot/config-${KNOW}
+test -f "$PKG/Makefile"
+test -f "$PKG/drivers/android/binder.c"
+need gcc
+need make
+need gzip
+need dracut
+need grubby
 
 echo "==== 磁盘 ===="
 df -hT / /boot /home /usr
@@ -32,31 +46,16 @@ if [ "${avail_home}" -lt $((20 * 1024 * 1024)) ]; then
 	exit 1
 fi
 
-echo "==== 从软件源重装同一颗 kernel-source（去掉现场改过的文件）===="
-# yum reinstall 不会删 make 留下的额外文件，必须先卸包再删目录。
-yum remove -y "kernel-source-${KNOW}" || yum remove -y kernel-source || true
-rm -rf "$PKG"
-yum install -y "kernel-source-${KNOW}"
-test -f "$PKG/Makefile"
-test -f "$PKG/drivers/android/binder.c"
+echo "==== 确认 kernel-source 仍是软件包原样 ===="
 if rpm --verify "kernel-source-${KNOW}" | grep -E 'drivers/android|Makefile'; then
-	echo "重装后的 kernel-source 仍和软件包不一致，停。"
+	echo "kernel-source 和软件包不一致。离线不要 yum，先按文档卸包删目录再装同一颗 323。"
 	rpm --verify "kernel-source-${KNOW}" | head
 	exit 1
 fi
 
 echo "==== 清掉 /home 里上次的工作副本 ===="
-rm -rf "$SRC"
-rm -rf "$OUT"
-
-dnf --setopt=cachedir=/home/dnf-cache install -y gcc make flex bison \
-	elfutils-libelf-devel openssl-devel bc rsync dwarves dracut || \
-	yum install -y gcc make flex bison elfutils-libelf-devel openssl-devel \
-		bc rsync dwarves dracut
-
+rm -rf "$SRC" "$OUT"
 mkdir -p "$OUT"
-# 不要沿用上次失败的目标文件
-find "$OUT" -mindepth 1 -maxdepth 1 ! -name rebuild.log -exec rm -rf {} +
 exec > >(tee -a "$LOG") 2>&1
 
 echo "编译器：$CC $($CC -dumpversion)"
@@ -66,24 +65,17 @@ echo "输出：$OUT"
 
 echo "==== 拷贝 kernel-source 到 /home（不在 /usr/src 里 make）===="
 mkdir -p "$SRC"
-rsync -a --delete "$PKG/" "$SRC/"
-
-# 还原 5.10 内置编法。现场若把 Makefile 改成了 binder_linux，内置编译会缺 .o
-cat > "$SRC/drivers/android/Makefile" <<'MK'
-# SPDX-License-Identifier: GPL-2.0-only
-ccflags-y := -I$(src)
-
-obj-$(CONFIG_ANDROID_BINDERFS)			+= binderfs.o
-obj-$(CONFIG_ANDROID_BINDER_IPC)		+= binder.o binder_alloc.o
-obj-$(CONFIG_ANDROID_BINDER_IPC_SELFTEST)	+= binder_alloc_selftest.o
-MK
+if command -v rsync >/dev/null 2>&1; then
+	rsync -a "$PKG/" "$SRC/"
+else
+	cp -a "$PKG/." "$SRC/"
+fi
 
 if [ -e "$SRC/.config" ] || [ -e "$SRC/include/config/auto.conf" ]; then
 	echo "工作源码树不干净，mrproper（只清 $SRC，不动 $PKG）"
 	make -C "$SRC" mrproper
 fi
 
-# 版本号必须带 323 和 binder，避免再变成 5.10.0-binder
 rm -f "$SRC"/localversion "$SRC"/localversion-*
 EV=$(sed -n 's/^EXTRAVERSION[[:space:]]*=[[:space:]]*//p' "$SRC/Makefile" | tr -d '[:space:]')
 echo "Makefile EXTRAVERSION='${EV}'"
@@ -102,15 +94,22 @@ cp -f /boot/config-${KNOW} "$OUT/.config"
 "$SRC/scripts/config" --file "$OUT/.config" --set-str ANDROID_BINDER_DEVICES "binder,hwbinder,vndbinder"
 "$SRC/scripts/config" --file "$OUT/.config" --disable ANDROID_BINDER_IPC_SELFTEST
 "$SRC/scripts/config" --file "$OUT/.config" --disable GCC_PLUGINS
+if ! command -v pahole >/dev/null 2>&1; then
+	echo "没有 pahole，关掉 CONFIG_DEBUG_INFO_BTF"
+	"$SRC/scripts/config" --file "$OUT/.config" --disable DEBUG_INFO_BTF
+fi
 
 make -C "$SRC" O="$OUT" CC="$CC" olddefconfig
 "$SRC/scripts/config" --file "$OUT/.config" --disable GCC_PLUGINS
 "$SRC/scripts/config" --file "$OUT/.config" --enable ANDROID --enable ANDROID_BINDER_IPC --enable ANDROID_BINDERFS
 "$SRC/scripts/config" --file "$OUT/.config" --set-str ANDROID_BINDER_DEVICES "binder,hwbinder,vndbinder"
+if ! command -v pahole >/dev/null 2>&1; then
+	"$SRC/scripts/config" --file "$OUT/.config" --disable DEBUG_INFO_BTF
+fi
 make -C "$SRC" O="$OUT" CC="$CC" olddefconfig
 
 echo "---- 关键配置 ----"
-grep -E 'CONFIG_ANDROID|GCC_PLUGINS|LOCALVERSION' "$OUT/.config"
+grep -E 'CONFIG_ANDROID|GCC_PLUGINS|LOCALVERSION|DEBUG_INFO_BTF' "$OUT/.config"
 
 if ! grep -q '^CONFIG_ANDROID_BINDER_IPC=y$' "$OUT/.config"; then
 	echo "Binder 没有编进内核，停。"

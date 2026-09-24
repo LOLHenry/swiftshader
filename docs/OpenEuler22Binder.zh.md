@@ -215,11 +215,24 @@ ls /usr/src/linux-$(uname -r)/drivers/android/binder.c
 
 不要装成别的内核版本。正在跑的 `kernel` / `kernel-devel` 不要动。`build_binder_kernel.sh` 开头会做同一套重装。
 
-不要在 `/usr/src` 里 `make`（会弄脏软件包文件，也容易把根分区写满）。工作目录放 `/home`。以正在跑的 `/boot/config-$(uname -r)` 为底，只打开上面四项，编完把 `Image` 打成和发行版一样的 gzip `vmlinuz`，用 `dracut` 生成初始化内存盘，`grubby --copy-default` 加启动项，**默认启动仍指向正在跑的 323**。仓库脚本一次做完这些：
+不要在 `/usr/src` 里 `make`（会弄脏软件包文件，也容易把根分区写满）。工作目录放 `/home`。以正在跑的 `/boot/config-$(uname -r)` 为底，只打开上面四项，编完把 `Image` 打成和发行版一样的 gzip `vmlinuz`，用 `dracut` 生成初始化内存盘，`grubby --copy-default` 加启动项，**默认启动仍指向正在跑的 323**。
+
+之前用 `grubby` 加过、但没编成功或没能启动的试验内核，先只删名字里带 `binder` 的项，不要删正在跑的 323：
 
 ```bash
-# tmux 里跑，不要直接贴进登录 shell
-bash scripts/redroid_4u8g_stopwatch/build_binder_kernel.sh
+KEEP=/boot/vmlinuz-5.10.0-323.0.0.224.oe2203sp4.aarch64
+grubby --set-default "$KEEP"
+grubby --info=ALL
+ls /boot/vmlinuz-*
+# 确认列表后：
+bash scripts/redroid_4u8g_stopwatch/remove_old_binder_kernels.sh
+```
+
+仓库里的 `build_binder_kernel.sh` 已改成离线可跑，不再 `yum` / `curl`。没有外网时，把脚本拷到 `/home/build_binder_kernel.sh`（或在本机用编辑器写入），不要去 GitHub 下。`tmux` 里：
+
+```bash
+bash -n /home/build_binder_kernel.sh
+bash /home/build_binder_kernel.sh
 ```
 
 脚本结束且默认启动仍是 323 之后，打开 iBMC 控制台，再把新内核设为默认并重启。失败就在控制台选回 323。重启后再跑第 1 节：`grep binder /proc/filesystems` 必须出现 `nodev binder`。`uname -r` 会带 `binder`，第 4 节的树外模块就不必再加载。
