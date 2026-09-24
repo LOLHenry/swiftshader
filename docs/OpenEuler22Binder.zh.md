@@ -200,7 +200,20 @@ yum install -y "kernel-source-uname-r == $(uname -r)"
 # yum install -y kernel-source-5.10.0-323.0.0.224.oe2203sp4.aarch64
 ```
 
-现场 323 已确认：这个包装到 `/usr/src/linux-$(uname -r)/`，里面有 `Makefile` 和 `drivers/android/binder.c`。`Already installed` 就不用再装。`kernel-source` 是解开的源码树，不是 `src.rpm`。
+现场 323 已确认：这个包装到 `/usr/src/linux-$(uname -r)/`，里面有 `Makefile` 和 `drivers/android/binder.c`。`kernel-source` 是解开的源码树，不是 `src.rpm`。
+
+若这份树里做过 `make`、改过 `drivers/android/Makefile`，或怕被污染：不要 `yum reinstall`（额外文件删不掉）。卸掉、删目录、再装同一颗：
+
+```bash
+yum remove -y kernel-source-5.10.0-323.0.0.224.oe2203sp4.aarch64
+rm -rf /usr/src/linux-5.10.0-323.0.0.224.oe2203sp4.aarch64
+yum install -y kernel-source-5.10.0-323.0.0.224.oe2203sp4.aarch64
+rm -rf /home/linux-5.10.0-323.0.0.224.oe2203sp4.aarch64 /home/kbuild
+rpm --verify kernel-source-5.10.0-323.0.0.224.oe2203sp4.aarch64
+ls /usr/src/linux-$(uname -r)/drivers/android/binder.c
+```
+
+不要装成别的内核版本。正在跑的 `kernel` / `kernel-devel` 不要动。`build_binder_kernel.sh` 开头会做同一套重装。
 
 不要在 `/usr/src` 里 `make`（会弄脏软件包文件，也容易把根分区写满）。工作目录放 `/home`。以正在跑的 `/boot/config-$(uname -r)` 为底，只打开上面四项，编完把 `Image` 打成和发行版一样的 gzip `vmlinuz`，用 `dracut` 生成初始化内存盘，`grubby --copy-default` 加启动项，**默认启动仍指向正在跑的 323**。仓库脚本一次做完这些：
 

@@ -23,8 +23,6 @@ if [ "$(uname -r)" != "$KNOW" ]; then
 fi
 test -f "$OLD_VMLINUZ"
 test -f /boot/config-${KNOW}
-test -f "$PKG/Makefile"
-test -f "$PKG/drivers/android/binder.c"
 
 echo "==== 磁盘 ===="
 df -hT / /boot /home /usr
@@ -33,6 +31,23 @@ if [ "${avail_home}" -lt $((20 * 1024 * 1024)) ]; then
 	echo "/home 空闲不足 20G，停。"
 	exit 1
 fi
+
+echo "==== 从软件源重装同一颗 kernel-source（去掉现场改过的文件）===="
+# yum reinstall 不会删 make 留下的额外文件，必须先卸包再删目录。
+yum remove -y "kernel-source-${KNOW}" || yum remove -y kernel-source || true
+rm -rf "$PKG"
+yum install -y "kernel-source-${KNOW}"
+test -f "$PKG/Makefile"
+test -f "$PKG/drivers/android/binder.c"
+if rpm --verify "kernel-source-${KNOW}" | grep -E 'drivers/android|Makefile'; then
+	echo "重装后的 kernel-source 仍和软件包不一致，停。"
+	rpm --verify "kernel-source-${KNOW}" | head
+	exit 1
+fi
+
+echo "==== 清掉 /home 里上次的工作副本 ===="
+rm -rf "$SRC"
+rm -rf "$OUT"
 
 dnf --setopt=cachedir=/home/dnf-cache install -y gcc make flex bison \
 	elfutils-libelf-devel openssl-devel bc rsync dwarves dracut || \
