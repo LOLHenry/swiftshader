@@ -51,7 +51,7 @@
 ## 3. 第一次在宿主机上做的事
 
 1. 安装 Docker。
-2. 让宿主机内核提供 Android Binder。openEuler 22 的发行版内核通常没有打开它，也没有 `systemctl start binder` 这种服务。先跑 `scripts/redroid_4u8g_stopwatch/check_host_binder.sh`，再按 [OpenEuler22Binder.zh.md](OpenEuler22Binder.zh.md) 处理。323 上已跑通的是第 3.2 节：用同一颗 `kernel-source` 重编并换内核。`grep binder /proc/filesystems` 必须出现 `nodev binder` 再往下走。
+2. 让宿主机内核提供 Android Binder。openEuler 22 默认没有。先跑 `scripts/redroid_4u8g_stopwatch/check_host_binder.sh`，没有则按 [OpenEuler22Binder.zh.md](OpenEuler22Binder.zh.md) 换内核。`grep binder /proc/filesystems` 必须有 `nodev binder` 再往下走。
 3. 拉镜像并记下摘要，不要以后只写 `latest`。
 4. 若系统时钟没有秒表，放入固定的 `stopwatch.apk`。
 5. 执行：
