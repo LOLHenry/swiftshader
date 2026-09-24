@@ -228,6 +228,8 @@ ls /boot/vmlinuz-*
 bash scripts/redroid_4u8g_stopwatch/remove_old_binder_kernels.sh
 ```
 
+发行版 `.config` 会要模块签名密钥，`kernel-source` 里没有这份私钥。脚本会在 `/home/kbuild/certs/` 现编一颗一次性密钥。若编译报 `certs/x509.genkey` 不存在，不要重跑整份脚本（会删掉已编好的目标文件）；补上该文件后，只续跑 `make ... Image modules`。
+
 仓库里的 `build_binder_kernel.sh` 已改成离线可跑，不再 `yum` / `curl`。没有外网时，把脚本拷到 `/home/build_binder_kernel.sh`（或在本机用编辑器写入），不要去 GitHub 下。`tmux` 里：
 
 ```bash
