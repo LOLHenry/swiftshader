@@ -101,60 +101,37 @@ perf report -i /tmp/perf-stopwatch.data --stdio | head -n 80
 grep swiftshader /proc/<host_pid>/maps
 ```
 
-秒表负载建议 `-p <sf>,<deskclock>`（宿主 pid）。那一份 **不是** 整机，只含这两个进程。
+秒表负载建议一次只盯 sf+时钟时用 `-p <sf>,<deskclock>`。采 **这个 redroid 的全部进程** 时不要 `-a`（那是整台宿主机）。
 
-整机（宿主机所有 CPU、所有进程，用户态）。鲲鹏核多，把频率降到 99Hz，仍用 `cpu-clock:u` + fp，避免默认 `-g` 段错误：
-
-```bash
-OUT=/home/f00589393/perf-stopwatch
-FG=/home/f00589393/redroid-build/FlameGraph-master
-mkdir -p "$OUT"
-sysctl -w kernel.kptr_restrict=0 kernel.perf_event_paranoid=-1
-perf record --call-graph fp -e cpu-clock:u -a -F 99 -o "$OUT/perf-host.data" -- sleep 60
-perf script -i "$OUT/perf-host.data" | "$FG/stackcollapse-perf.pl" | "$FG/flamegraph.pl" > "$OUT/flame-host.svg"
-perf report -i "$OUT/perf-host.data" --stdio --no-children --percent-limit 1 --sort comm | head -40
-```
-
-打开 `$OUT/flame-host.svg`。`-a` 是整台服务器（含 sshd、其它容器），不是「只这个 Android」。只要这个 redroid 里全部进程：
+每次跑进带时间戳的新目录，不要写死 `perf-stopwatch` 以免覆盖：
 
 ```bash
 NAME=redroid-4c8g
-PIDS=$(docker top "$NAME" -eo pid | awk 'NR>1{printf "%s%s", (n++?",":""), $1}')
-perf record --call-graph fp -e cpu-clock:u -F 99 -p "$PIDS" -o "$OUT/perf-redroid.data" -- sleep 60
-```
-
-火焰图就是一条管道。发行版 `perf` 不内置，用已下载的 FlameGraph zip：
-
-```bash
-OUT=/home/f00589393/perf-stopwatch
 FG=/home/f00589393/redroid-build/FlameGraph-master
+OUT=/home/f00589393/perf-redroid/$(date +%Y%m%d-%H%M%S)
 mkdir -p "$OUT"
-cp -a /tmp/perf-stopwatch.data "$OUT/"
-cd "$OUT"
-[[ -d "$FG" ]] || unzip -o /home/f00589393/redroid-build/FlameGraph-master.zip -d /home/f00589393/redroid-build
-perf script -i perf-stopwatch.data | "$FG/stackcollapse-perf.pl" | "$FG/flamegraph.pl" > flame.svg
+sysctl -w kernel.kptr_restrict=0 kernel.perf_event_paranoid=-1
+PIDS=$(docker top "$NAME" -eo pid | awk 'NR>1{printf "%s%s", (n++?",":""), $1}')
+echo "$PIDS" | tr ',' '\n' | wc -l | awk '{print "pids",$1}'
+echo "$OUT"
+perf record --call-graph fp -e cpu-clock:u -F 99 -p "$PIDS" -o "$OUT/perf.data" -- sleep 60
+SF=$(ps -eo pid,comm | awk '$2=="surfaceflinger"{print $1; exit}')
+SYM=( )
+[[ -n "$SF" && -d /proc/$SF/root/system ]] && SYM=(--symfs /proc/$SF/root)
+perf script -i "$OUT/perf.data" "${SYM[@]}" | "$FG/stackcollapse-perf.pl" | "$FG/flamegraph.pl" > "$OUT/flame.svg"
+perf report -i "$OUT/perf.data" --stdio --no-children --percent-limit 1 --sort comm "${SYM[@]}" | head -40 | tee "$OUT/report-comm.txt"
+ls -lh "$OUT"
 ```
 
-浏览器打开 `$OUT/flame.svg`。采样时没带 `--call-graph` 会变成一条扁平直方图，仍然能看谁热。
-
-容器里的 `.so` 要显示函数名时，把中间那行改成（PID 换成当前 surfaceflinger 宿主 pid）：
-
-```bash
-perf script -i perf-stopwatch.data --symfs /proc/<sf>/root | "$FG/stackcollapse-perf.pl" | "$FG/flamegraph.pl" > flame.svg
-```
+打开 `$OUT/flame.svg`。FlameGraph 脚本留在 `redroid-build`，不要拷进 `$OUT`。
 
 JIT 里的 `PixelRoutine_XXXX` 默认没有：SwiftShader 不写 `/tmp/perf-PID.map`。火焰图会显示成 `[unknown]`；对照 `/proc/<pid>/maps` 里的 `swiftshader_jit` 即可。要函数名是 WP2，不是出图的前置条件。
 
 读报告（先按 **库/映射** 分桶，不要对着单个符号改指令）：
 
 ```bash
-ls -lh /tmp/perf-stopwatch.data
-# 按进程 + 共享库。Self% 才是「这层自己在烧」
-perf report -i /tmp/perf-stopwatch.data --stdio --no-children --percent-limit 1 --sort comm,dso | head -80
-# 再看符号叶子（匿名页常叫 [unknown]）
-perf report -i /tmp/perf-stopwatch.data --stdio --no-children --percent-limit 1 --sort comm,symbol | head -80
-# 匿名热点是不是 SwiftShader JIT
-grep swiftshader /proc/<sf>/maps /proc/<deskclock>/maps
+perf report -i "$OUT/perf.data" --stdio --no-children --percent-limit 1 --sort comm,dso | head -80
+perf report -i "$OUT/perf.data" --stdio --no-children --percent-limit 1 --sort comm,symbol | head -80
 ```
 
 把 `dso` 列归进下表（同一条样本只算一次）：
