@@ -88,14 +88,20 @@ ldd $(command -v perf) | grep 'not found' || true
 # 仍缺某 .so 时：yum provides '*/那个文件名'
 ```
 
+自编译内核（名字带 `-binder-ashmem`）时，发行版 `perf` 对不上内核符号：会报 `Couldn't record kernel reference relocation symbol`，随后有时直接段错误。软渲染热点在用户态，不要采内核：
+
 ```bash
-# 在宿主机上，<host_pid> 是该容器 surfaceflinger 的宿主 pid
-# 秒表负载建议同时采合成器和时钟：-p <sf>,<deskclock>
-perf record -g -p <host_pid> -- sleep 30
-perf report --stdio | head -n 80
-# 对照匿名页名字（maps 也要用同一个 pid 命名空间里的）
+# 即使是 root，kptr_restrict=2 也会把 /proc/kallsyms 打成 0
+sysctl -w kernel.kptr_restrict=0 kernel.perf_event_paranoid=-1
+# :u = 只采用户态；fp 比默认 dwarf 稳，避开段错误
+perf record --call-graph fp -e cpu-clock:u -p <host_pid> -o /tmp/perf-stopwatch.data -- sleep 60
+# 若仍段错误，去掉调用栈再采：
+# perf record -e cpu-clock:u -p <host_pid> -o /tmp/perf-stopwatch.data -- sleep 60
+perf report -i /tmp/perf-stopwatch.data --stdio | head -n 80
 grep swiftshader /proc/<host_pid>/maps
 ```
+
+秒表负载建议 `-p <sf>,<deskclock>`（宿主 pid）。
 
 | 排名 | 符号或占比类别 | 进程（应用 / surfaceflinger） | 约占 CPU% |
 |------|----------------|------------------------------|-----------|

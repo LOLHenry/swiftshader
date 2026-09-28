@@ -123,8 +123,8 @@ if [[ "${COLLECT_PERF}" == "1" ]]; then
 	# 宿主机上的窗口合成器进程号，不是容器内的进程号。
 	host_sf="$(ps -eo pid,args | awk '/surfaceflinger/ && !/awk/ {print $1; exit}')"
 	if [[ -n "${host_sf}" ]]; then
-		echo "在宿主机上对窗口合成器进程 ${host_sf} 采集 ${RECORD_SECONDS} 秒"
-		perf record -g -p "${host_sf}" -o "${OUT_DIR}/perf-surfaceflinger.data" -- sleep "${RECORD_SECONDS}" || true
+		echo "在宿主机上对窗口合成器进程 ${host_sf} 采集 ${RECORD_SECONDS} 秒（用户态 + fp 调用栈）"
+		perf record --call-graph fp -e cpu-clock:u -p "${host_sf}" -o "${OUT_DIR}/perf-surfaceflinger.data" -- sleep "${RECORD_SECONDS}" || true
 	else
 		echo "未在宿主机进程表里找到 surfaceflinger，跳过 perf。"
 		sleep "${RECORD_SECONDS}"

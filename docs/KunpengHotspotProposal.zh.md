@@ -233,7 +233,9 @@ top -H -p <容器内 surfaceflinger 或渲染进程在宿主机的 pid>
 ```bash
 yum install -y OpenCSD babeltrace
 ldd $(command -v perf) | grep 'not found' || true
-perf record -g -p <pid> -- sleep 30
+# 自编译内核上不要用默认 -g（会去解析内核符号，常段错误）。软渲染只采用户态：
+sysctl -w kernel.kptr_restrict=0 kernel.perf_event_paranoid=-1
+perf record --call-graph fp -e cpu-clock:u -p <pid> -- sleep 30
 perf report
 ```
 
