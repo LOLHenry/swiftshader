@@ -64,6 +64,8 @@ cd scripts/redroid_4u8g_stopwatch
 
 脚本会：创建容器 → 等待开机 → 写入配置 → 启动秒表并开始走时 → 等 60 秒 → 写出指纹和 `dumpsys gfxinfo`。需要采性能计数时加上 `COLLECT_PERF=1`，脚本在宿主机上对窗口合成器对应的宿主进程号执行 `perf record`。openEuler 22 鲲鹏上若报缺 `libopencsd_c_api.so.1` 或 `libbabeltrace-ctf.so.1`，先 `yum install -y OpenCSD babeltrace`，再 `ldd $(command -v perf) | grep 'not found'` 确认没有漏库。自编译内核上若报 `Couldn't record kernel reference relocation symbol` 或 `perf` 段错误：`sysctl -w kernel.kptr_restrict=0 kernel.perf_event_paranoid=-1`，然后 `perf record --call-graph fp -e cpu-clock:u`（只采用户态）。
 
+采完后把 `perf.data` 拷到家目录并出 HTML、给 JIT 匿名页起名，见 [WP0-baseline-template.zh.md](WP0-baseline-template.zh.md) E 节「拷到家目录并出 HTML」，或 `scripts/redroid_4u8g_stopwatch/perf_to_html.sh`。
+
 ---
 
 ## 4. 秒表怎么启动（脚本已按此尝试）
