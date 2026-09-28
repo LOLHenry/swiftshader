@@ -157,6 +157,9 @@ kill $MPID
 彻底解决：JIT 编译当时就写 `/tmp/perf-<pid>.map`（地址、长度、名字），不要事后猜 maps。
 
 ```bash
+OUT=$(ls -d /home/f00589393/perf-redroid/*/ | sort | tail -1)
+SF=$(ps -eo pid,comm | awk '$2=="surfaceflinger"{print $1; exit}')
+DC=$(ps -eo pid,comm | awk '$2 ~ /deskclock/{print $1; exit}')
 echo "SF=$SF DC=$DC"
 awk '$2 ~ /x/' /proc/$SF/maps /proc/$DC/maps | tee "$OUT/maps-exec.txt"
 python3 - "$OUT" $SF $DC <<'PY'
