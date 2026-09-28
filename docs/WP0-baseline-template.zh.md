@@ -125,6 +125,68 @@ ls -lh "$OUT"
 
 打开 `$OUT/flame.svg`。FlameGraph 脚本留在 `redroid-build`，不要拷进 `$OUT`。
 
+火焰图里 `vulkan.pastel.so` **点不进去是正常的**，不要在这层上找 `PixelRoutine`：
+
+1. redroid 镜像里这份 `.so` 通常被 strip，库内函数名本来就没有。
+2. 真正填像素的代码在匿名页 `swiftshader_jit`，不算 `.so` 的一部分；fp 调用栈进 JIT 也会断。
+3. 下一刀是看 **self% 落在哪个 dso**，以及 `[unknown]` 的地址是否在 `swiftshader_jit` 里。
+
+```bash
+OUT=$(ls -d /home/f00589393/perf-redroid/*/ | sort | tail -1)
+SF=$(ps -eo pid,comm | awk '$2=="surfaceflinger"{print $1; exit}')
+DC=$(ps -eo pid,comm | awk '$2 ~ /deskclock/{print $1; exit}')
+echo "OUT=$OUT SF=$SF DC=$DC"
+
+# 1) 按库分桶（self）。这张表比点开 pastel.so 有用
+perf report -i "$OUT/perf.data" --stdio --no-children --percent-limit 0.5 --sort comm,dso | head -60 | tee "$OUT/report-dso.txt"
+
+# 2) .so 有没有符号（0 个全局符号 = strip，点不开）
+ls -l /proc/$SF/root/vendor/lib64/hw/vulkan.pastel.so
+nm /proc/$SF/root/vendor/lib64/hw/vulkan.pastel.so 2>/dev/null | wc -l
+
+# 3) JIT 页范围 + 落在这些页上的样本占比
+grep swiftshader /proc/$SF/maps /proc/$DC/maps | tee "$OUT/jit-maps.txt"
+python3 - "$OUT" $SF $DC <<'PY'
+import os, sys
+out, pids = sys.argv[1], sys.argv[2:]
+ranges = []
+for pid in pids:
+    p = "/proc/%s/maps" % pid
+    if not os.path.isfile(p):
+        continue
+    for line in open(p):
+        if "swiftshader_jit" not in line:
+            continue
+        a, b = line.split()[0].split("-")
+        ranges.append((int(a, 16), int(b, 16), pid))
+script = os.path.join(out, "script-ip.txt")
+os.system("perf script -i %s/perf.data -F comm,ip > %s" % (out, script))
+n = jit = 0
+from collections import Counter
+c = Counter()
+for line in open(script):
+    parts = line.split()
+    if len(parts) < 2:
+        continue
+    try:
+        ip = int(parts[-1], 16)
+    except ValueError:
+        continue
+    n += 1
+    for lo, hi, pid in ranges:
+        if lo <= ip < hi:
+            jit += 1
+            c[(pid, (ip - lo) & ~0x3f)] += 1
+            break
+print("samples", n, "in_swiftshader_jit", jit, "pct", (100.0 * jit / n) if n else 0)
+print("top JIT 64B buckets:")
+for (pid, off), k in c.most_common(15):
+    print("  pid", pid, "off+0x%x" % off, k)
+PY
+```
+
+若 `in_swiftshader_jit` 占比高：热点就是像素 JIT，**不要改 pastel.so 里某个可见符号**；要函数名得写 `/tmp/perf-PID.map`（WP2）。若占比低、时间在 `libhwui` / `memcpy` / pastel 静态代码：先减层或查拷贝，不要改 `frecpe`。
+
 JIT 里的 `PixelRoutine_XXXX` 默认没有：SwiftShader 不写 `/tmp/perf-PID.map`。火焰图会显示成 `[unknown]`；对照 `/proc/<pid>/maps` 里的 `swiftshader_jit` 即可。要函数名是 WP2，不是出图的前置条件。
 
 读报告（先按 **库/映射** 分桶，不要对着单个符号改指令）：
