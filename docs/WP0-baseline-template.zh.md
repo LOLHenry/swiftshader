@@ -75,15 +75,17 @@
 
 **perf 打在宿主机上**，pid 用宿主机看到的那个。容器里 `pidof surfaceflinger` 的数字对宿主机无效。先在宿主机用 cgroup / `ps` 对上，再采。
 
-openEuler 22 鲲鹏上的 `perf` 常链了 OpenCSD（CoreSight 解码库）。缺库时会直接：
+openEuler 22 鲲鹏上的 `perf` 常链了 OpenCSD 和 babeltrace，但 RPM 没把它们写成硬依赖。缺库时二进制起不来，例如：
 
 `error while loading shared libraries: libopencsd_c_api.so.1`
+`error while loading shared libraries: libbabeltrace-ctf.so.1`
 
-`perf record -g` 做的是普通采样，不需要 CoreSight；装上库只是为了让二进制能启动：
+`perf record -g` 做的是普通采样，不需要 CoreSight / CTF；装上库只是为了让二进制能启动。一次装齐，再用 `ldd` 看还有没有 `not found`：
 
 ```bash
-yum install -y OpenCSD
-# 仓库里没有时：yum provides '*/libopencsd_c_api.so.1'
+yum install -y OpenCSD babeltrace
+ldd $(command -v perf) | grep 'not found' || true
+# 仍缺某 .so 时：yum provides '*/那个文件名'
 ```
 
 ```bash

@@ -111,11 +111,13 @@ sleep 1
 
 if [[ "${COLLECT_PERF}" == "1" ]]; then
 	if ! command -v perf >/dev/null 2>&1; then
-		echo "未找到 perf。openEuler：yum install -y perf OpenCSD" >&2
+		echo "未找到 perf。openEuler：yum install -y perf OpenCSD babeltrace" >&2
 		exit 1
 	fi
-	if ldd "$(command -v perf)" 2>/dev/null | grep -q 'libopencsd.*not found'; then
-		echo "perf 链了 OpenCSD 但缺库（libopencsd_c_api.so.1）。openEuler：yum install -y OpenCSD" >&2
+	missing="$(ldd "$(command -v perf)" 2>/dev/null | awk '/not found/ {print}' || true)"
+	if [[ -n "${missing}" ]]; then
+		echo "perf 缺共享库，先装再采。openEuler 常见：yum install -y OpenCSD babeltrace" >&2
+		echo "${missing}" >&2
 		exit 1
 	fi
 	# 宿主机上的窗口合成器进程号，不是容器内的进程号。
