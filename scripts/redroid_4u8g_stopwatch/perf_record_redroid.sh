@@ -4,6 +4,11 @@
 #
 # 用法（秒表继续走）：
 #   NAME=redroid-4c8g RECORD_SECONDS=60 ./perf_record_redroid.sh
+#
+# 官方镜像里的 vulkan.pastel.so 没有 .symtab（函数名表被裁掉），perf 只能看到库名和地址。
+# 要让采样尽量齐：先换成未裁剪的 so 再采（见脚本末尾说明），JIT 像素函数仍要 /tmp/perf-PID.map。
+# 若已有一份和容器内同构建的未裁剪 so：
+#   UNSTRIPPED_PASTEL=/path/to/vulkan.pastel.so ./perf_record_redroid.sh
 
 set -euo pipefail
 
@@ -29,9 +34,24 @@ if [[ -n "${missing}" ]]; then
 	exit 1
 fi
 
-mkdir -p "${OUT}/maps"
+mkdir -p "${OUT}/maps" "${OUT}/symfs"
 echo "输出目录：${OUT}"
 echo "容器：${NAME}  时长：${RECORD_SECONDS}s  maps 间隔：${MAP_INTERVAL}s"
+
+# 把容器里正在用的 pastel.so 存档，并看有没有符号表
+docker cp "${NAME}:/vendor/lib64/hw/vulkan.pastel.so" "${OUT}/vulkan.pastel.so" 2>/dev/null \
+	|| docker cp "${NAME}:/system/lib64/hw/vulkan.pastel.so" "${OUT}/vulkan.pastel.so" 2>/dev/null \
+	|| true
+if [[ -f "${OUT}/vulkan.pastel.so" ]]; then
+	{
+		echo "==== file ===="
+		file "${OUT}/vulkan.pastel.so" || true
+		echo "==== 段（有无 .symtab / .dynsym） ===="
+		readelf -S "${OUT}/vulkan.pastel.so" 2>/dev/null | grep -E 'symtab|dynsym|debug' || true
+		echo "nm(符号表) 行数：$(nm "${OUT}/vulkan.pastel.so" 2>/dev/null | wc -l)"
+		echo "nm -D(动态导出) 行数：$(nm -D "${OUT}/vulkan.pastel.so" 2>/dev/null | wc -l)"
+	} | tee "${OUT}/pastel-symbols.txt"
+fi
 
 sysctl -w kernel.kptr_restrict=0 kernel.perf_event_paranoid=-1 >/dev/null
 
@@ -90,9 +110,15 @@ while read -r pid; do
 done <"${OUT}/pids.txt"
 
 SYM=()
-if [[ -n "${SF}" && -d "/proc/${SF}/root/system" ]]; then
+if [[ -n "${UNSTRIPPED_PASTEL:-}" && -f "${UNSTRIPPED_PASTEL}" ]]; then
+	mkdir -p "${OUT}/symfs/vendor/lib64/hw" "${OUT}/symfs/system/lib64/hw"
+	cp -a "${UNSTRIPPED_PASTEL}" "${OUT}/symfs/vendor/lib64/hw/vulkan.pastel.so"
+	cp -a "${UNSTRIPPED_PASTEL}" "${OUT}/symfs/system/lib64/hw/vulkan.pastel.so"
+	SYM=(--symfs "${OUT}/symfs")
+	echo "SYMFS=${OUT}/symfs  （UNSTRIPPED_PASTEL；必须和容器内那份是同一次编译，否则函数名会对错）"
+elif [[ -n "${SF}" && -d "/proc/${SF}/root/system" ]]; then
 	SYM=(--symfs "/proc/${SF}/root")
-	echo "SYMFS=/proc/${SF}/root"
+	echo "SYMFS=/proc/${SF}/root  （容器内 so 若无 .symtab，这里仍然没有 C++ 函数名）"
 fi
 
 {
@@ -121,4 +147,5 @@ fi
 
 echo "maps：${OUT}/maps/   （t0 … tend，和采样同时段）"
 echo "对 JIT 地址：grep -i <地址前几位> ${OUT}/maps/*.txt ${OUT}/mmap-events.txt"
+echo "pastel 符号：${OUT}/pastel-symbols.txt"
 ls -lh "${OUT}/perf.data" "${OUT}/maps" | sed -n '1,20p'
