@@ -134,18 +134,30 @@ perf report -i "$OUT/perf.data" --stdio --no-children --percent-limit 0.5 --sort
 perf report -i "$OUT/perf.data" --stdio --no-children --percent-limit 0.5 --sort comm | head -30
 ```
 
-`grep swiftshader` 经常是空的：内核没有 `CONFIG_ANON_VMA_NAME` 时 maps 不带这个名字。改列可执行映射：
+`grep swiftshader` 经常是空的：内核没有 `CONFIG_ANON_VMA_NAME` 时 maps 不带这个名字。改列可执行映射。
+
+**不要用「现在」的 `/proc/pid/maps` 去对采样里的 JIT 地址。** JIT 页会释放、再分配，地址 `0xffec27982000` 采完时可能已经没了。`perf.data` 里自带当时的映射记录：
+
+```bash
+# 采样当时有没有这块可执行内存（MMAP / MUNMAP）
+perf script -i "$OUT/perf.data" --show-mmap-events | grep -i 27982000
+# 仍没有：扩大一点（去掉末尾的页内偏移）
+perf script -i "$OUT/perf.data" --show-mmap-events | grep -i ffec2798
+```
+
+采的时候并行把 maps 记下来（和 perf 同时段，才对得上）：
+
+```bash
+( while sleep 1; do echo "==== $(date -Is) ===="; cat /proc/$SF/maps /proc/$DC/maps; done ) >"$OUT/maps-live.log" &
+MPID=$!
+# 这里跑原来的 perf record …
+kill $MPID
+```
+
+彻底解决：JIT 编译当时就写 `/tmp/perf-<pid>.map`（地址、长度、名字），不要事后猜 maps。
 
 ```bash
 echo "SF=$SF DC=$DC"
-awk '$2 ~ /x/' /proc/$SF/maps /proc/$DC/maps | tee "$OUT/maps-exec.txt"
-```
-
-```bash
-OUT=$(ls -d /home/f00589393/perf-redroid/*/ | sort | tail -1)
-SF=$(ps -eo pid,comm | awk '$2=="surfaceflinger"{print $1; exit}')
-DC=$(ps -eo pid,comm | awk '$2 ~ /deskclock/{print $1; exit}')
-echo "OUT=$OUT SF=$SF DC=$DC"
 awk '$2 ~ /x/' /proc/$SF/maps /proc/$DC/maps | tee "$OUT/maps-exec.txt"
 python3 - "$OUT" $SF $DC <<'PY'
 import os, sys
@@ -190,9 +202,7 @@ for k, v in c.most_common(15):
 PY
 ```
 
-若 `in_swiftshader_jit` 占比高：热点就是像素 JIT，**不要改 pastel.so 里某个可见符号**；要函数名得写 `/tmp/perf-PID.map`（WP2）。若占比低、时间在 `libhwui` / `memcpy` / pastel 静态代码：先减层或查拷贝，不要改 `frecpe`。
-
-JIT 里的 `PixelRoutine_XXXX` 默认没有：SwiftShader 不写 `/tmp/perf-PID.map`。火焰图会显示成 `[unknown]`；对照 `/proc/<pid>/maps` 里的 `swiftshader_jit` 即可。要函数名是 WP2，不是出图的前置条件。
+若 `in_anon_exec` 占比高：热点就是像素 JIT，**不要改 pastel.so 里某个可见符号**；要函数名得写 `/tmp/perf-PID.map`（WP2）。若合计时间在 `libhwui` / `memcpy`：先减层或查拷贝。
 
 读报告（先按 **库/映射** 分桶，不要对着单个符号改指令）：
 
