@@ -241,6 +241,15 @@ perf report
 
 你会经常看到一大块匿名 `r-xp` / `jit unknown`。结合 `/proc/<pid>/maps` 看页名是不是 `swiftshader_jit`。
 
+先按库分桶再看符号（填 [WP0 表](WP0-baseline-template.zh.md) E 节）：
+
+```bash
+perf report -i /tmp/perf-stopwatch.data --stdio --no-children --percent-limit 1 --sort comm,dso | head -80
+perf report -i /tmp/perf-stopwatch.data --stdio --no-children --percent-limit 1 --sort comm,symbol | head -80
+```
+
+`comm` 分开看：`surfaceflinger` 是叠层，时钟进程是应用自己画。两边都可以是 SwiftShader。
+
 同时注意：
 
 - `libhwui` / `libskia`：2D 自己在算，或不该那么多层。

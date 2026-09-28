@@ -103,6 +103,29 @@ grep swiftshader /proc/<host_pid>/maps
 
 秒表负载建议 `-p <sf>,<deskclock>`（宿主 pid）。
 
+读报告（先按 **库/映射** 分桶，不要对着单个符号改指令）：
+
+```bash
+ls -lh /tmp/perf-stopwatch.data
+# 按进程 + 共享库。Self% 才是「这层自己在烧」
+perf report -i /tmp/perf-stopwatch.data --stdio --no-children --percent-limit 1 --sort comm,dso | head -80
+# 再看符号叶子（匿名页常叫 [unknown]）
+perf report -i /tmp/perf-stopwatch.data --stdio --no-children --percent-limit 1 --sort comm,symbol | head -80
+# 匿名热点是不是 SwiftShader JIT
+grep swiftshader /proc/<sf>/maps /proc/<deskclock>/maps
+```
+
+把 `dso` 列归进下表（同一条样本只算一次）：
+
+| 报告里出现 | 填哪一类 |
+|------------|----------|
+| `vulkan.pastel` / `libvk_swiftshader` / `[unknown]` 且 maps 有 `swiftshader_jit` | `swiftshader_jit`（再看 comm 是 deskclock 还是 surfaceflinger） |
+| `libhwui` / `libskia` / `libhwui.so` | Skia / HWUI |
+| `libEGL` / `libGLESv2` / `ANGLE` / `libfeature_support` | ANGLE 翻译 |
+| `memcpy` / `memmove` / `prepareForExternalUse` / `libc.so` 里拷贝很重 | AHB 按行拷贝 |
+| `libart` / `libdexfile` / `com.android.deskclock` 非渲染符号 | 应用业务 |
+| `libbinder` / 内核（本次 `:u` 采样应很少） | 先忽略，或回头查超卖 |
+
 | 排名 | 符号或占比类别 | 进程（应用 / surfaceflinger） | 约占 CPU% |
 |------|----------------|------------------------------|-----------|
 | 1 | 例：`jit unknown` / `swiftshader_jit` | | |
