@@ -107,11 +107,12 @@ grep swiftshader /proc/<host_pid>/maps
 
 ```bash
 OUT=/home/f00589393/perf-stopwatch
+FG=/home/f00589393/redroid-build/FlameGraph-master
 mkdir -p "$OUT"
 cp -a /tmp/perf-stopwatch.data "$OUT/"
 cd "$OUT"
-[[ -d FlameGraph ]] || git clone --depth 1 https://github.com/brendangregg/FlameGraph.git
-perf script -i perf-stopwatch.data | FlameGraph/stackcollapse-perf.pl | FlameGraph/flamegraph.pl > flame.svg
+[[ -d "$FG" ]] || unzip -o /home/f00589393/redroid-build/FlameGraph-master.zip -d /home/f00589393/redroid-build
+perf script -i perf-stopwatch.data | "$FG/stackcollapse-perf.pl" | "$FG/flamegraph.pl" > flame.svg
 ```
 
 浏览器打开 `$OUT/flame.svg`。采样时没带 `--call-graph` 会变成一条扁平直方图，仍然能看谁热。
