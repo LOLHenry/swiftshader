@@ -103,6 +103,82 @@ grep swiftshader /proc/<host_pid>/maps
 
 秒表负载建议 `-p <sf>,<deskclock>`（宿主 pid）。
 
+拷到家目录并出 HTML（进程还活着时跑，才能写 JIT map 和 `--symfs`）：
+
+```bash
+OUT=/home/f00589393/perf-stopwatch
+DATA=/tmp/perf-stopwatch.data
+NAME=redroid-4c8g
+mkdir -p "$OUT"
+cp -a "$DATA" "$OUT/perf-stopwatch.data"
+
+SF=$(ps -eo pid,comm | awk '$2=="surfaceflinger"{print $1; exit}')
+DC=$(ps -eo pid,comm | awk '$2 ~ /deskclock/{print $1; exit}')
+
+# 符号从哪解析：容器根。没有它，libhwui / pastel 经常只显示地址。
+SYMFS=
+[[ -n "$SF" && -d /proc/$SF/root/system ]] && SYMFS=/proc/$SF/root
+MERGED=$(docker inspect "$NAME" --format '{{.GraphDriver.Data.MergedDir}}' 2>/dev/null || true)
+[[ -d "$MERGED/system" ]] && SYMFS=$MERGED
+echo "SYMFS=$SYMFS"
+
+# JIT 映射：SwiftShader 不写 /tmp/perf-PID.map。把 maps 里名为 swiftshader_jit 的整段标成一个符号。
+# 这还不是 PixelRoutine_XXXX；要函数名得改库写 map（WP2）。
+for p in $SF $DC; do
+  [[ -n "$p" ]] || continue
+  cp -a /proc/$p/maps "$OUT/maps.$p"
+  python3 - "$p" "$OUT/perf-$p.map" <<'PY'
+import sys
+pid, dst = sys.argv[1], sys.argv[2]
+rows = []
+for line in open("/proc/%s/maps" % pid):
+    if "swiftshader_jit" not in line:
+        continue
+    a, b = line.split()[0].split("-")
+    start, end = int(a, 16), int(b, 16)
+    rows.append("%x %x swiftshader_jit" % (start, end - start))
+open(dst, "w").write("\n".join(rows) + ("\n" if rows else ""))
+print(pid, "jit ranges", len(rows))
+PY
+  cp -a "$OUT/perf-$p.map" /tmp/perf-$p.map
+done
+
+SYM=( )
+[[ -n "$SYMFS" ]] && SYM=(--symfs "$SYMFS")
+perf report -i "$OUT/perf-stopwatch.data" --stdio --no-children --percent-limit 0.3 --sort comm,dso "${SYM[@]}" >"$OUT/report-dso.txt"
+perf report -i "$OUT/perf-stopwatch.data" --stdio --no-children --percent-limit 0.3 --sort comm,symbol "${SYM[@]}" >"$OUT/report-sym.txt"
+perf script -i "$OUT/perf-stopwatch.data" "${SYM[@]}" >"$OUT/script.txt"
+
+python3 - "$OUT" <<'PY'
+import html, os, pathlib, sys
+out = sys.argv[1]
+def pre(name):
+    p = os.path.join(out, name)
+    t = pathlib.Path(p).read_text(errors="replace") if os.path.isfile(p) else "(missing)"
+    return "<h2>%s</h2><pre>%s</pre>" % (html.escape(name), html.escape(t))
+html_out = (
+    "<!DOCTYPE html><meta charset=utf-8><title>stopwatch perf</title>"
+    "<style>body{font:14px/1.4 sans-serif;margin:24px}pre{font:12px monospace;white-space:pre-wrap}</style>"
+    "<h1>stopwatch perf</h1>"
+    "<p><code>[unknown]</code> + maps 里的 <code>swiftshader_jit</code> = 像素 JIT。"
+    "本目录 <code>perf-PID.map</code> 只给整段 JIT 起名，不是 PixelRoutine。</p>"
+    + pre("report-dso.txt") + pre("report-sym.txt")
+)
+pathlib.Path(os.path.join(out, "index.html")).write_text(html_out, encoding="utf-8")
+print("wrote", os.path.join(out, "index.html"))
+PY
+
+# 可选火焰图（github 不通就跳过）
+git clone --depth 1 https://github.com/brendangregg/FlameGraph.git "$OUT/FlameGraph" || true
+if [[ -f $OUT/FlameGraph/flamegraph.pl ]]; then
+  perl "$OUT/FlameGraph/stackcollapse-perf.pl" "$OUT/script.txt" >"$OUT/collapsed.txt"
+  perl "$OUT/FlameGraph/flamegraph.pl" --title stopwatch "$OUT/collapsed.txt" >"$OUT/flame.svg"
+  printf '%s\n' '<!DOCTYPE html><meta charset=utf-8><embed src="flame.svg" style="width:100%;height:100vh">' >"$OUT/flame.html"
+fi
+ls -lh "$OUT/index.html" "$OUT"/flame.html "$OUT"/flame.svg 2>/dev/null
+echo "浏览器打开 $OUT/index.html  （火焰图: $OUT/flame.html）"
+```
+
 读报告（先按 **库/映射** 分桶，不要对着单个符号改指令）：
 
 ```bash
