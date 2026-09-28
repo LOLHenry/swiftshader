@@ -103,7 +103,16 @@ grep swiftshader /proc/<host_pid>/maps
 
 秒表负载建议一次只盯 sf+时钟时用 `-p <sf>,<deskclock>`。采 **这个 redroid 的全部进程** 时不要 `-a`（那是整台宿主机）。
 
-每次跑进带时间戳的新目录，不要写死 `perf-stopwatch` 以免覆盖：
+采 **这个 redroid 的全部进程**（不要 `-a`）。每次进带时间戳的新目录，**采样同时记可执行 maps**：
+
+```bash
+cd /path/to/swiftshader/scripts/redroid_4u8g_stopwatch
+NAME=redroid-4c8g RECORD_SECONDS=60 ./perf_record_redroid.sh
+```
+
+输出在 `/home/f00589393/perf-redroid/时间戳/`：`perf.data`、`maps/t00.txt`…、`mmap-events.txt`、可选 `flame.svg`。对 JIT 地址用当时的 maps，不要 grep 现在的 `/proc/pid/maps`。
+
+手工等价命令（一般直接跑脚本）：
 
 ```bash
 NAME=redroid-4c8g
@@ -124,6 +133,16 @@ ls -lh "$OUT"
 ```
 
 打开 `$OUT/flame.svg`。FlameGraph 脚本留在 `redroid-build`，不要拷进 `$OUT`。
+
+`--symfs` 指向容器里的 Android 文件时，宿主机老 `libbfd` 可能刷：
+
+`BFD: /system/bin/surfaceflinger: unknown type [0x13] section '.relr.dyn'`
+
+这是解析器不认识 Android 的 RELR 重定位段，**不是采样失败**。数字照常用。嫌吵：
+
+```bash
+perf report -i "$OUT/perf.data" --stdio "${SYM[@]}" 2>/dev/null | head -40
+```
 
 火焰图里 `vulkan.pastel.so` **不能展开成函数名**：`nm` 为 0 就是 strip。栈里的 `0xf09c…` 已经是地址级；要 C++ / `PixelRoutine` 名必须换未 strip 的 so，或 JIT 写 `/tmp/perf-PID.map`。
 
