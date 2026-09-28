@@ -75,8 +75,20 @@
 
 **perf 打在宿主机上**，pid 用宿主机看到的那个。容器里 `pidof surfaceflinger` 的数字对宿主机无效。先在宿主机用 cgroup / `ps` 对上，再采。
 
+openEuler 22 鲲鹏上的 `perf` 常链了 OpenCSD（CoreSight 解码库）。缺库时会直接：
+
+`error while loading shared libraries: libopencsd_c_api.so.1`
+
+`perf record -g` 做的是普通采样，不需要 CoreSight；装上库只是为了让二进制能启动：
+
+```bash
+yum install -y OpenCSD
+# 仓库里没有时：yum provides '*/libopencsd_c_api.so.1'
+```
+
 ```bash
 # 在宿主机上，<host_pid> 是该容器 surfaceflinger 的宿主 pid
+# 秒表负载建议同时采合成器和时钟：-p <sf>,<deskclock>
 perf record -g -p <host_pid> -- sleep 30
 perf report --stdio | head -n 80
 # 对照匿名页名字（maps 也要用同一个 pid 命名空间里的）

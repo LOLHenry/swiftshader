@@ -228,9 +228,10 @@ top -H -p <容器内 surfaceflinger 或渲染进程在宿主机的 pid>
 
 **3）perf：时间在哪一层**
 
-在宿主机对目标进程：
+在宿主机对目标进程。openEuler 22 鲲鹏上的 `perf` 常链 OpenCSD；缺 `libopencsd_c_api.so.1` 时先 `yum install -y OpenCSD`（采样不走 CoreSight，只是链接依赖）。
 
 ```bash
+yum install -y OpenCSD
 perf record -g -p <pid> -- sleep 30
 perf report
 ```

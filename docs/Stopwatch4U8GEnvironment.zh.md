@@ -62,7 +62,7 @@ cd scripts/redroid_4u8g_stopwatch
 ./run.sh
 ```
 
-脚本会：创建容器 → 等待开机 → 写入配置 → 启动秒表并开始走时 → 等 60 秒 → 写出指纹和 `dumpsys gfxinfo`。需要采性能计数时加上 `COLLECT_PERF=1`，脚本在宿主机上对窗口合成器对应的宿主进程号执行 `perf record`。
+脚本会：创建容器 → 等待开机 → 写入配置 → 启动秒表并开始走时 → 等 60 秒 → 写出指纹和 `dumpsys gfxinfo`。需要采性能计数时加上 `COLLECT_PERF=1`，脚本在宿主机上对窗口合成器对应的宿主进程号执行 `perf record`。openEuler 22 鲲鹏上若报 `libopencsd_c_api.so.1: cannot open shared object file`，先 `yum install -y OpenCSD`。
 
 ---
 
