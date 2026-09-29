@@ -115,10 +115,12 @@ NAME=redroid-4c8g RECORD_SECONDS=60 ./perf_record_redroid.sh
 | 文件 | 用途 |
 |------|------|
 | `perf.data` / `flame.svg` | 默认 `cpu-clock`（用户态+系统态）。内核不要符号，图上常是地址 / `[kernel.kallsyms]`。失败会降级 |
+| `maps/t00.txt`…`tend` | 采样同时段的可执行映射；每秒刷新 PID |
 | `cpu-visible.txt` | 容器里 `nproc` / `cpu/online`。绑了 4 核但这里仍是 16/320，就会起 16 条 worker |
 | `cpu-time-delta.txt` | 各进程 user/sys 秒数 |
 | `render-threads-t0.txt` | pastel 进程、cwd 有无 ini、`Thread<*>` 条数 |
 | `warnings.txt` | 未绑核，或已绑核但 nproc 对不上 |
+| `docker-stats-t0/tend.txt` | 容器总 CPU |
 
 对 JIT 地址用当时的 maps，不要 grep 现在的 `/proc/pid/maps`。
 
