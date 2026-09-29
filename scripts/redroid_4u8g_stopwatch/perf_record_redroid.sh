@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
-# 对正在跑的 redroid 采用户态 perf，同时按秒记下可执行 maps（给 JIT 地址对时段，不要事后 grep 当前 maps）。
+# 对正在跑的 redroid 采 perf，同时按秒记下可执行 maps（给 JIT 地址对时段，不要事后 grep 当前 maps）。
 # 每次输出到带时间戳的新目录，不会覆盖上次。
 #
 # 用法（秒表继续走）：
 #   NAME=redroid-4c8g RECORD_SECONDS=60 ./perf_record_redroid.sh
 #
-# 默认仍是 cpu-clock:u（只用户态）。系统态对照看 cpu-time-delta.txt，不要和火焰图百分比直接相加。
-# 想连内核栈一起采（自编译内核上可能再段错误）：INCLUDE_KERNEL=1 ./perf_record_redroid.sh
+# 默认 cpu-clock（用户态+系统态）。内核栈不解析符号，图上常是地址 / [kernel.kallsyms]。
+# 自编译内核上若段错误，脚本会去掉调用栈再采；再失败才退回 cpu-clock:u。
+# 只要用户态：USER_ONLY=1 ./perf_record_redroid.sh
 #
 # 官方镜像里的 vulkan.pastel.so 没有 .symtab（函数名表被裁掉），perf 只能看到库名和地址。
 # 要让采样尽量齐：先换成未裁剪的 so 再采（见脚本末尾说明），JIT 像素函数仍要 /tmp/perf-PID.map。
@@ -21,11 +22,11 @@ MAP_INTERVAL="${MAP_INTERVAL:-1}"
 FREQ="${FREQ:-99}"
 FG="${FG:-/home/f00589393/redroid-build/FlameGraph-master}"
 OUT="${OUT:-/home/f00589393/perf-redroid/$(date +%Y%m%d-%H%M%S)}"
-INCLUDE_KERNEL="${INCLUDE_KERNEL:-0}"
-if [[ "${INCLUDE_KERNEL}" == "1" ]]; then
-	PERF_EVENT="cpu-clock"
-else
+USER_ONLY="${USER_ONLY:-0}"
+if [[ "${USER_ONLY}" == "1" ]]; then
 	PERF_EVENT="cpu-clock:u"
+else
+	PERF_EVENT="cpu-clock"
 fi
 
 if [[ "$(id -u)" != "0" ]]; then
@@ -61,10 +62,38 @@ NANOCPUS="$(docker inspect -f '{{.HostConfig.NanoCpus}}' "${NAME}")"
 INIT_PID="$(docker inspect -f '{{.State.Pid}}' "${NAME}")"
 GUEST_NPROC="$(docker exec "${NAME}" nproc 2>/dev/null | tr -d '\r' || true)"
 
+{
+	echo "CpusetCpus=${CPUSET:-空}"
+	echo "NanoCpus=${NANOCPUS}"
+	echo "nproc=${GUEST_NPROC:-?}"
+	docker exec "${NAME}" sh -c 'echo online=$(cat /sys/devices/system/cpu/online 2>/dev/null)
+echo possible=$(cat /sys/devices/system/cpu/possible 2>/dev/null)
+echo cpuset=$(cat /dev/cpuset/cpus 2>/dev/null || cat /sys/fs/cgroup/cpuset/cpuset.cpus 2>/dev/null || cat /sys/fs/cgroup/cpuset.cpus 2>/dev/null)
+echo vulkan=$(getprop ro.hardware.vulkan 2>/dev/null)' 2>/dev/null || true
+} >"${OUT}/cpu-visible.txt" || true
+
 if [[ -z "${CPUSET}" ]]; then
 	note "警告：CpusetCpus 为空。--cpus=4 只限配额，容器里 nproc 仍可能是整机核数。"
 	note "SwiftShader 默认 ThreadCount=min(看见的逻辑核, 16)。nproc=${GUEST_NPROC:-?} 时，没找到 SwiftShader.ini 就会起最多 16 条 marl worker。"
 	note "绑核要在进程起来之前：docker run --cpuset-cpus=...，绑完后重启 surfaceflinger / 容器，线程数才会变。"
+elif [[ "${GUEST_NPROC:-}" =~ ^[0-9]+$ ]]; then
+	PINNED="$(python3 -c '
+import sys
+s=sys.argv[1]; n=0
+for p in s.split(","):
+    p=p.strip()
+    if not p: continue
+    if "-" in p:
+        a,b=p.split("-",1); n += int(b)-int(a)+1
+    else:
+        n += 1
+print(n)
+' "${CPUSET}" 2>/dev/null || echo 0)"
+	if [[ "${PINNED}" =~ ^[0-9]+$ && "${GUEST_NPROC}" -gt "${PINNED}" ]]; then
+		note "已绑核 ${CPUSET}（${PINNED} 个），但容器里 nproc=${GUEST_NPROC}。marl 按 nproc 起线程，不按 docker CpusetCpus。"
+		note "所以 4U 仍可能 min(nproc,16)=16 条 worker。看 ${OUT}/cpu-visible.txt 的 online / nproc。"
+		note "若 nproc 已经是 4 仍有 16 条 Thread<*> ：进程是绑核之前起来的，必须重启容器。"
+	fi
 fi
 
 # 把容器里正在用的 pastel.so 存档，并看有没有符号表
@@ -269,24 +298,52 @@ for pid, (comm, ut1, st1, _) in b.items():
     ts += ds
     nt = b[pid][3]
     out.append("%s %s %d %d %.3f %.3f %d" % (pid, comm, du, ds, du / float(ticks), ds / float(ticks), nt))
-out.append("TOTAL user_s=%.3f sys_s=%.3f  (对照火焰图：图里只有用户态；sys 不在 cpu-clock:u 里)" % (tu / float(ticks), ts / float(ticks)))
+out.append("TOTAL user_s=%.3f sys_s=%.3f  (proc 记账；火焰图另见 cpu-clock 是否含内核样本)" % (tu / float(ticks), ts / float(ticks)))
 open(sys.argv[3], "w").write("\n".join(out) + "\n")
 PY
 	fi
 }
 trap stop_maps EXIT
 
-echo "开始 perf record ${RECORD_SECONDS}s（${PERF_EVENT} + fp）"
+run_perf() {
+	# $1=event  $2=callgraph: fp|none
+	local event="$1"
+	local cg="$2"
+	if [[ "${cg}" == "fp" ]]; then
+		perf record --call-graph fp -e "${event}" -F "${FREQ}" "${PERF_FILTER[@]}" \
+			-o "${OUT}/perf.data" -- sleep "${RECORD_SECONDS}"
+	else
+		perf record -e "${event}" -F "${FREQ}" "${PERF_FILTER[@]}" \
+			-o "${OUT}/perf.data" -- sleep "${RECORD_SECONDS}"
+	fi
+}
+
+echo "开始 perf record ${RECORD_SECONDS}s（${PERF_EVENT}，含内核样本则不解析内核符号）"
 set +e
-perf record --call-graph fp -e "${PERF_EVENT}" -F "${FREQ}" "${PERF_FILTER[@]}" \
-	-o "${OUT}/perf.data" -- sleep "${RECORD_SECONDS}"
+run_perf "${PERF_EVENT}" fp
 PERF_RC=$?
-set -e
 if [[ "${PERF_RC}" -ne 0 && "${PERF_FILTER[0]}" != "-p" ]]; then
-	note "cgroup/绑核过滤失败 (exit ${PERF_RC})，改用开始时的 -p 列表再采一次。"
+	note "cgroup/绑核过滤失败 (exit ${PERF_RC})，改用开始时的 -p 列表。"
 	refresh_pids
-	perf record --call-graph fp -e "${PERF_EVENT}" -F "${FREQ}" -p "${PIDS}" \
-		-o "${OUT}/perf.data" -- sleep "${RECORD_SECONDS}"
+	PERF_FILTER=(-p "${PIDS}")
+	run_perf "${PERF_EVENT}" fp
+	PERF_RC=$?
+fi
+if [[ "${PERF_RC}" -ne 0 && "${PERF_EVENT}" != "cpu-clock:u" ]]; then
+	note "带内核的调用栈失败 (exit ${PERF_RC})，去掉调用栈再采（内核只计样本，不解析符号）。"
+	run_perf "${PERF_EVENT}" none
+	PERF_RC=$?
+fi
+if [[ "${PERF_RC}" -ne 0 && "${PERF_EVENT}" != "cpu-clock:u" ]]; then
+	note "仍失败，退回 cpu-clock:u + fp。"
+	PERF_EVENT="cpu-clock:u"
+	run_perf "${PERF_EVENT}" fp
+	PERF_RC=$?
+fi
+set -e
+if [[ "${PERF_RC}" -ne 0 ]]; then
+	note "perf record 失败 exit=${PERF_RC}"
+	exit "${PERF_RC}"
 fi
 finish_sample
 trap - EXIT
@@ -347,6 +404,7 @@ if [[ -f "${FG}/stackcollapse-perf.pl" && -f "${FG}/flamegraph.pl" ]]; then
 fi
 
 echo "maps：${OUT}/maps/   （每秒刷新 PID，t0 … tend）"
+echo "容器看见几核：${OUT}/cpu-visible.txt"
 echo "user/sys 对照：${OUT}/cpu-time-delta.txt"
 echo "marl 线程 / ini：${OUT}/render-threads-t0.txt"
 echo "警告：${OUT}/warnings.txt"

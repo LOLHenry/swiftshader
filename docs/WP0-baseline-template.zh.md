@@ -114,16 +114,41 @@ NAME=redroid-4c8g RECORD_SECONDS=60 ./perf_record_redroid.sh
 
 | 文件 | 用途 |
 |------|------|
-| `perf.data` / `flame.svg` | 用户态采样和火焰图（默认 `cpu-clock:u`，不含 sys） |
-| `maps/t00.txt`…`tend` | 采样同时段的可执行映射；每秒刷新 PID |
-| `cpu-time-delta.txt` | 各进程 user/sys 秒数，用来对照 `docker stats` |
-| `render-threads-t0.txt` | 谁加载了 pastel、cwd 有没有 ini、`Thread<*>` 有几条 |
-| `warnings.txt` | 未绑核、退回 `-p` 等 |
-| `docker-stats-t0/tend.txt` | 容器总 CPU |
+| `perf.data` / `flame.svg` | 默认 `cpu-clock`（用户态+系统态）。内核不要符号，图上常是地址 / `[kernel.kallsyms]`。失败会降级 |
+| `cpu-visible.txt` | 容器里 `nproc` / `cpu/online`。绑了 4 核但这里仍是 16/320，就会起 16 条 worker |
+| `cpu-time-delta.txt` | 各进程 user/sys 秒数 |
+| `render-threads-t0.txt` | pastel 进程、cwd 有无 ini、`Thread<*>` 条数 |
+| `warnings.txt` | 未绑核，或已绑核但 nproc 对不上 |
 
 对 JIT 地址用当时的 maps，不要 grep 现在的 `/proc/pid/maps`。
 
-**为什么 SF 会有 16 条 worker，而不是 4U 就 4 条：** redroid 不会自己起 16 条渲染线程。`vulkan.pastel.so` 里 marl 的默认是 `min(看见的逻辑核, 16)`（`src/System/SwiftConfig.cpp`）。只写 `--cpus=4` 不绑核时，容器里 `nproc` 仍是整机核数（常见 320），于是封顶成 16。`SwiftShader.ini` 只认 **该进程 cwd**；合成器和秒表是两份 ICD、两份线程池。绑核必须在进程起来之前，并且 cwd 里要有 `ThreadCount=4`，然后重启 SF / 容器，线程数才会掉下来。脚本会把这些写进 `render-threads-t0.txt` 和 `warnings.txt`。
+**为什么 SF 会有 16 条 worker，而不是 4U 就 4 条：** redroid 不会自己起 16 条渲染线程。`vulkan.pastel.so` 里 marl 的默认是 `min(看见的逻辑核, 16)`（`src/System/SwiftConfig.cpp`）。它看的是容器里 `nproc` / `cpu/online`，**不是** `docker inspect` 的 `CpusetCpus`。所以会出现：宿主机已经 `--cpuset-cpus=316-319`，Android 里 `nproc` 仍是 16 或 320，于是仍起 16 条；线程只会被调度到那 4 个核上跑，16 条在 4 核上挤。另一种：绑核前 SF 已经起来了，池子不会自己缩小，必须重启容器。ini 只认进程 cwd。脚本把 `nproc` vs 绑核写进 `cpu-visible.txt` / `warnings.txt`。
+
+进容器核对（先宿主机，再进 Android）：
+
+```bash
+NAME=redroid-4c8g
+docker inspect -f 'CpusetCpus={{.HostConfig.CpusetCpus}}  NanoCpus={{.HostConfig.NanoCpus}}' "$NAME"
+docker exec -it "$NAME" sh
+```
+
+容器里：
+
+```bash
+nproc
+cat /sys/devices/system/cpu/online
+pidof surfaceflinger
+SF=$(pidof surfaceflinger)
+ls -l /proc/$SF/cwd/SwiftShader.ini
+cat /proc/$SF/cwd/SwiftShader.ini 2>/dev/null
+grep Cpus_allowed /proc/$SF/status
+for t in /proc/$SF/task/*/comm; do cat "$t"; done | grep Thread | wc -l
+for t in /proc/$SF/task/*/comm; do cat "$t"; done | grep Thread
+```
+
+`nproc`/`online` 大于 4 → 默认就会 `min(该数,16)`。已经是 4 但 Thread 仍 16 → 重启容器。没有 ini → 不会走 `ThreadCount=4`。
+
+也可走 adb：`adb connect 127.0.0.1:6666` 然后 `adb -s 127.0.0.1:6666 shell`，后面命令相同。
 
 手工等价命令（一般直接跑脚本）：
 
