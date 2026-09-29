@@ -319,7 +319,7 @@ flowchart LR
 
 **做：**
 
-1. 每个 redroid **只能看见套餐核数**（常见 2～4），不要把 128 核暴露进去。
+1. 每个 redroid **只能看见套餐核数**（常见 2～4），不要把 128 核暴露进去。`--cpus=4` 不够，`nproc` 仍可能是整机；要 `--cpuset-cpus=`。SwiftShader 默认 `min(nproc, 16)`（`SwiftConfig.cpp`），所以 4U 未绑核时 SF 常出现 **16 条** `Thread<*>`。这不是 redroid 另有一套 16 线程机制。绑核之后必须重启 SF / 容器，已经拉起的 marl 池不会自己缩小。
 2. **应用进程和 `surfaceflinger` 各自加载一份 ICD**，各有一份 `ThreadCount`。ini 只认 **该进程的 cwd**（`ls -l /proc/<pid>/cwd`），不是 `.so` 所在目录。两个进程 cwd 往往不同，只给其中一个放 ini，另一边仍可能起 16 条线程。先对两个 pid 都确认 cwd 后再放：
 
 ```ini

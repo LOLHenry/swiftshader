@@ -101,16 +101,29 @@ perf report -i /tmp/perf-stopwatch.data --stdio | head -n 80
 grep swiftshader /proc/<host_pid>/maps
 ```
 
-秒表负载建议一次只盯 sf+时钟时用 `-p <sf>,<deskclock>`。采 **这个 redroid 的全部进程** 时不要 `-a`（那是整台宿主机）。
+秒表负载建议一次只盯 sf+时钟时用 `-p <sf>,<deskclock>`。采 **这个 redroid 的全部进程** 时不要裸 `-a`（那是整台宿主机）。脚本在能检测到容器 cgroup 时会用 `-G` 限定在该容器内（可带上后来新起的进程）。
 
-采 **这个 redroid 的全部进程**（不要 `-a`）。每次进带时间戳的新目录，**采样同时记可执行 maps**：
+每次进带时间戳的新目录，**采样同时记可执行 maps**。把 `scripts/redroid_4u8g_stopwatch/perf_record_redroid.sh` 拷到宿主机后：
 
 ```bash
 cd /path/to/swiftshader/scripts/redroid_4u8g_stopwatch
 NAME=redroid-4c8g RECORD_SECONDS=60 ./perf_record_redroid.sh
 ```
 
-输出在 `/home/f00589393/perf-redroid/时间戳/`：`perf.data`、`maps/t00.txt`…、`mmap-events.txt`、可选 `flame.svg`。对 JIT 地址用当时的 maps，不要 grep 现在的 `/proc/pid/maps`。
+输出在 `/home/f00589393/perf-redroid/时间戳/`：
+
+| 文件 | 用途 |
+|------|------|
+| `perf.data` / `flame.svg` | 用户态采样和火焰图（默认 `cpu-clock:u`，不含 sys） |
+| `maps/t00.txt`…`tend` | 采样同时段的可执行映射；每秒刷新 PID |
+| `cpu-time-delta.txt` | 各进程 user/sys 秒数，用来对照 `docker stats` |
+| `render-threads-t0.txt` | 谁加载了 pastel、cwd 有没有 ini、`Thread<*>` 有几条 |
+| `warnings.txt` | 未绑核、退回 `-p` 等 |
+| `docker-stats-t0/tend.txt` | 容器总 CPU |
+
+对 JIT 地址用当时的 maps，不要 grep 现在的 `/proc/pid/maps`。
+
+**为什么 SF 会有 16 条 worker，而不是 4U 就 4 条：** redroid 不会自己起 16 条渲染线程。`vulkan.pastel.so` 里 marl 的默认是 `min(看见的逻辑核, 16)`（`src/System/SwiftConfig.cpp`）。只写 `--cpus=4` 不绑核时，容器里 `nproc` 仍是整机核数（常见 320），于是封顶成 16。`SwiftShader.ini` 只认 **该进程 cwd**；合成器和秒表是两份 ICD、两份线程池。绑核必须在进程起来之前，并且 cwd 里要有 `ThreadCount=4`，然后重启 SF / 容器，线程数才会掉下来。脚本会把这些写进 `render-threads-t0.txt` 和 `warnings.txt`。
 
 手工等价命令（一般直接跑脚本）：
 
@@ -146,7 +159,7 @@ perf report -i "$OUT/perf.data" --stdio "${SYM[@]}" 2>/dev/null | head -40
 
 火焰图里 `vulkan.pastel.so` **不能展开成函数名**：`nm` 为 0 就是 strip。栈里的 `0xf09c…` 已经是地址级；要 C++ / `PixelRoutine` 名必须换未 strip 的 so，或 JIT 写 `/tmp/perf-PID.map`。
 
-`Thread<04>` 是 SwiftShader（marl）工作线程。`--sort comm,dso` 会按线程拆开，每个 ~2–3% 看起来不大，**合计**才有意义：
+`Thread<04>` 是 SwiftShader（marl）工作线程，活在 surfaceflinger / deskclock 进程里，不是 redroid 另起的进程。默认最多 16 条（见上节）。`--sort comm,dso` 会按线程拆开，每个 ~2–3% 看起来不大，**合计**才有意义：
 
 ```bash
 perf report -i "$OUT/perf.data" --stdio --no-children --percent-limit 0.5 --sort dso | head -30

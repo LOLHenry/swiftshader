@@ -62,9 +62,7 @@ cd scripts/redroid_4u8g_stopwatch
 ./run.sh
 ```
 
-脚本会：创建容器 → 等待开机 → 写入配置 → 启动秒表并开始走时 → 等 60 秒 → 写出指纹和 `dumpsys gfxinfo`。需要采性能计数时加上 `COLLECT_PERF=1`，脚本在宿主机上对窗口合成器对应的宿主进程号执行 `perf record`。openEuler 22 鲲鹏上若报缺 `libopencsd_c_api.so.1` 或 `libbabeltrace-ctf.so.1`，先 `yum install -y OpenCSD babeltrace`，再 `ldd $(command -v perf) | grep 'not found'` 确认没有漏库。自编译内核上若报 `Couldn't record kernel reference relocation symbol` 或 `perf` 段错误：`sysctl -w kernel.kptr_restrict=0 kernel.perf_event_paranoid=-1`，然后 `perf record --call-graph fp -e cpu-clock:u`（只采用户态）。
-
-采完后出火焰图，或直接跑 `scripts/redroid_4u8g_stopwatch/perf_record_redroid.sh`（采样同时记 maps）。详见 [WP0-baseline-template.zh.md](WP0-baseline-template.zh.md) E 节。
+脚本会：创建容器 → 等待开机 → 写入配置 → 启动秒表并开始走时 → 等 60 秒 → 写出指纹和 `dumpsys gfxinfo`。`COLLECT_PERF=1` 仍只采宿主机上的一个 `surfaceflinger`，不要当整容器采样。整容器请跑 `scripts/redroid_4u8g_stopwatch/perf_record_redroid.sh`（cgroup 过滤、同时记 maps、user/sys 对照、marl 线程数）。openEuler 22 鲲鹏上若报缺 `libopencsd_c_api.so.1` 或 `libbabeltrace-ctf.so.1`，先 `yum install -y OpenCSD babeltrace`，再 `ldd $(command -v perf) | grep 'not found'` 确认没有漏库。自编译内核上若报 `Couldn't record kernel reference relocation symbol` 或 `perf` 段错误：`sysctl -w kernel.kptr_restrict=0 kernel.perf_event_paranoid=-1`，然后默认 `cpu-clock:u`（只采用户态）。详见 [WP0-baseline-template.zh.md](WP0-baseline-template.zh.md) E 节。
 
 ---
 
