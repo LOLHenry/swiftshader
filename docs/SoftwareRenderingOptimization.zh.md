@@ -381,7 +381,7 @@ AffinityPolicy=one
 ## 7. 建议的落地顺序（给项目经理和开发）
 
 **第 0 步：量**  
-每容器 `top`/`perf`：SwiftShader/ANGLE 线程数是否≈16；宿主机是否 N×16。对卡顿界面抓一帧，看时间是在应用、Skia、ANGLE 还是 SwiftShader。
+每容器 `top`/`perf`：SwiftShader/ANGLE 线程数是否≈16；宿主机是否 N×16。对卡顿界面抓一帧，看时间是在应用、Skia、ANGLE 还是 SwiftShader。openEuler 22 鲲鹏上 `perf` 缺 `libopencsd_c_api.so.1` / `libbabeltrace-ctf.so.1` 时先 `yum install -y OpenCSD babeltrace`。
 
 **第 1 步：配额 + ini + 分辨率 + FPS**  
 目标：单机实例数上去之后，单容器 FPS 不塌。

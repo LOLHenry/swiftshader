@@ -228,14 +228,27 @@ top -H -p <容器内 surfaceflinger 或渲染进程在宿主机的 pid>
 
 **3）perf：时间在哪一层**
 
-在宿主机对目标进程：
+在宿主机对目标进程。openEuler 22 鲲鹏上的 `perf` 常链 OpenCSD 和 babeltrace，但没写成硬依赖；缺 `libopencsd_c_api.so.1` / `libbabeltrace-ctf.so.1` 时二进制起不来。采样不走 CoreSight / CTF，装库只为启动：
 
 ```bash
-perf record -g -p <pid> -- sleep 30
+yum install -y OpenCSD babeltrace
+ldd $(command -v perf) | grep 'not found' || true
+# 自编译内核上不要用默认 -g（会去解析内核符号，常段错误）。软渲染只采用户态：
+sysctl -w kernel.kptr_restrict=0 kernel.perf_event_paranoid=-1
+perf record --call-graph fp -e cpu-clock:u -p <pid> -- sleep 30
 perf report
 ```
 
 你会经常看到一大块匿名 `r-xp` / `jit unknown`。结合 `/proc/<pid>/maps` 看页名是不是 `swiftshader_jit`。
+
+先按库分桶再看符号（填 [WP0 表](WP0-baseline-template.zh.md) E 节）：
+
+```bash
+perf report -i /tmp/perf-stopwatch.data --stdio --no-children --percent-limit 1 --sort comm,dso | head -80
+perf report -i /tmp/perf-stopwatch.data --stdio --no-children --percent-limit 1 --sort comm,symbol | head -80
+```
+
+`comm` 分开看：`surfaceflinger` 是叠层，时钟进程是应用自己画。两边都可以是 SwiftShader。
 
 同时注意：
 
@@ -306,7 +319,7 @@ flowchart LR
 
 **做：**
 
-1. 每个 redroid **只能看见套餐核数**（常见 2～4），不要把 128 核暴露进去。
+1. 每个 redroid **只能看见套餐核数**（常见 2～4），不要把 128 核暴露进去。`--cpus=4` 不够，`nproc` 仍可能是整机；要 `--cpuset-cpus=`。SwiftShader 默认 `min(nproc, 16)`（`SwiftConfig.cpp`），所以 4U 未绑核时 SF 常出现 **16 条** `Thread<*>`。这不是 redroid 另有一套 16 线程机制。绑核之后必须重启 SF / 容器，已经拉起的 marl 池不会自己缩小。
 2. **应用进程和 `surfaceflinger` 各自加载一份 ICD**，各有一份 `ThreadCount`。ini 只认 **该进程的 cwd**（`ls -l /proc/<pid>/cwd`），不是 `.so` 所在目录。两个进程 cwd 往往不同，只给其中一个放 ini，另一边仍可能起 16 条线程。先对两个 pid 都确认 cwd 后再放：
 
 ```ini

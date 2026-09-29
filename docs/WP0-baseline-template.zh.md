@@ -75,13 +75,214 @@
 
 **perf 打在宿主机上**，pid 用宿主机看到的那个。容器里 `pidof surfaceflinger` 的数字对宿主机无效。先在宿主机用 cgroup / `ps` 对上，再采。
 
+openEuler 22 鲲鹏上的 `perf` 常链了 OpenCSD 和 babeltrace，但 RPM 没把它们写成硬依赖。缺库时二进制起不来，例如：
+
+`error while loading shared libraries: libopencsd_c_api.so.1`
+`error while loading shared libraries: libbabeltrace-ctf.so.1`
+
+`perf record -g` 做的是普通采样，不需要 CoreSight / CTF；装上库只是为了让二进制能启动。一次装齐，再用 `ldd` 看还有没有 `not found`：
+
 ```bash
-# 在宿主机上，<host_pid> 是该容器 surfaceflinger 的宿主 pid
-perf record -g -p <host_pid> -- sleep 30
-perf report --stdio | head -n 80
-# 对照匿名页名字（maps 也要用同一个 pid 命名空间里的）
+yum install -y OpenCSD babeltrace
+ldd $(command -v perf) | grep 'not found' || true
+# 仍缺某 .so 时：yum provides '*/那个文件名'
+```
+
+自编译内核（名字带 `-binder-ashmem`）时，发行版 `perf` 对不上内核符号：会报 `Couldn't record kernel reference relocation symbol`，随后有时直接段错误。软渲染热点在用户态，不要采内核：
+
+```bash
+# 即使是 root，kptr_restrict=2 也会把 /proc/kallsyms 打成 0
+sysctl -w kernel.kptr_restrict=0 kernel.perf_event_paranoid=-1
+# :u = 只采用户态；fp 比默认 dwarf 稳，避开段错误
+perf record --call-graph fp -e cpu-clock:u -p <host_pid> -o /tmp/perf-stopwatch.data -- sleep 60
+# 若仍段错误，去掉调用栈再采：
+# perf record -e cpu-clock:u -p <host_pid> -o /tmp/perf-stopwatch.data -- sleep 60
+perf report -i /tmp/perf-stopwatch.data --stdio | head -n 80
 grep swiftshader /proc/<host_pid>/maps
 ```
+
+秒表负载建议一次只盯 sf+时钟时用 `-p <sf>,<deskclock>`。采 **这个 redroid 的全部进程** 时不要裸 `-a`（那是整台宿主机）。脚本在能检测到容器 cgroup 时会用 `-G` 限定在该容器内（可带上后来新起的进程）。
+
+每次进带时间戳的新目录，**采样同时记可执行 maps**。把 `scripts/redroid_4u8g_stopwatch/perf_record_redroid.sh` 拷到宿主机后：
+
+```bash
+cd /path/to/swiftshader/scripts/redroid_4u8g_stopwatch
+NAME=redroid-4c8g RECORD_SECONDS=60 ./perf_record_redroid.sh
+```
+
+输出在 `/home/f00589393/perf-redroid/时间戳/`：
+
+| 文件 | 用途 |
+|------|------|
+| `perf.data` / `flame.svg` | 默认 `cpu-clock`（用户态+系统态）。内核不要符号，图上常是地址 / `[kernel.kallsyms]`。失败会降级 |
+| `maps/t00.txt`…`tend` | 采样同时段的可执行映射；每秒刷新 PID |
+| `cpu-visible.txt` | 容器里 `nproc` / `cpu/online`。绑了 4 核但这里仍是 16/320，就会起 16 条 worker |
+| `cpu-time-delta.txt` | 各进程 user/sys 秒数 |
+| `render-threads-t0.txt` | pastel 进程、cwd 有无 ini、`Thread<*>` 条数 |
+| `warnings.txt` | 未绑核，或已绑核但 nproc 对不上 |
+| `docker-stats-t0/tend.txt` | 容器总 CPU |
+
+对 JIT 地址用当时的 maps，不要 grep 现在的 `/proc/pid/maps`。
+
+**为什么 SF 会有 16 条 worker，而不是 4U 就 4 条：** redroid 不会自己起 16 条渲染线程。`vulkan.pastel.so` 里 marl 的默认是 `min(看见的逻辑核, 16)`（`src/System/SwiftConfig.cpp`）。它看的是容器里 `nproc` / `cpu/online`，**不是** `docker inspect` 的 `CpusetCpus`。所以会出现：宿主机已经 `--cpuset-cpus=316-319`，Android 里 `nproc` 仍是 16 或 320，于是仍起 16 条；线程只会被调度到那 4 个核上跑，16 条在 4 核上挤。另一种：绑核前 SF 已经起来了，池子不会自己缩小，必须重启容器。ini 只认进程 cwd。脚本把 `nproc` vs 绑核写进 `cpu-visible.txt` / `warnings.txt`。
+
+进容器核对（先宿主机，再进 Android）：
+
+```bash
+NAME=redroid-4c8g
+docker inspect -f 'CpusetCpus={{.HostConfig.CpusetCpus}}  NanoCpus={{.HostConfig.NanoCpus}}' "$NAME"
+docker exec -it "$NAME" sh
+```
+
+容器里：
+
+```bash
+nproc
+cat /sys/devices/system/cpu/online
+pidof surfaceflinger
+SF=$(pidof surfaceflinger)
+ls -l /proc/$SF/cwd/SwiftShader.ini
+cat /proc/$SF/cwd/SwiftShader.ini 2>/dev/null
+grep Cpus_allowed /proc/$SF/status
+for t in /proc/$SF/task/*/comm; do cat "$t"; done | grep Thread | wc -l
+for t in /proc/$SF/task/*/comm; do cat "$t"; done | grep Thread
+```
+
+`nproc`/`online` 大于 4 → 默认就会 `min(该数,16)`。已经是 4 但 Thread 仍 16 → 重启容器。没有 ini → 不会走 `ThreadCount=4`。
+
+也可走 adb：`adb connect 127.0.0.1:6666` 然后 `adb -s 127.0.0.1:6666 shell`，后面命令相同。
+
+手工等价命令（一般直接跑脚本）：
+
+```bash
+NAME=redroid-4c8g
+FG=/home/f00589393/redroid-build/FlameGraph-master
+OUT=/home/f00589393/perf-redroid/$(date +%Y%m%d-%H%M%S)
+mkdir -p "$OUT"
+sysctl -w kernel.kptr_restrict=0 kernel.perf_event_paranoid=-1
+PIDS=$(docker top "$NAME" -eo pid | awk 'NR>1{printf "%s%s", (n++?",":""), $1}')
+echo "$PIDS" | tr ',' '\n' | wc -l | awk '{print "pids",$1}'
+echo "$OUT"
+perf record --call-graph fp -e cpu-clock:u -F 99 -p "$PIDS" -o "$OUT/perf.data" -- sleep 60
+SF=$(ps -eo pid,comm | awk '$2=="surfaceflinger"{print $1; exit}')
+SYM=( )
+[[ -n "$SF" && -d /proc/$SF/root/system ]] && SYM=(--symfs /proc/$SF/root)
+perf script -i "$OUT/perf.data" "${SYM[@]}" | "$FG/stackcollapse-perf.pl" | "$FG/flamegraph.pl" > "$OUT/flame.svg"
+perf report -i "$OUT/perf.data" --stdio --no-children --percent-limit 1 --sort comm "${SYM[@]}" | head -40 | tee "$OUT/report-comm.txt"
+ls -lh "$OUT"
+```
+
+打开 `$OUT/flame.svg`。FlameGraph 脚本留在 `redroid-build`，不要拷进 `$OUT`。
+
+`--symfs` 指向容器里的 Android 文件时，宿主机老 `libbfd` 可能刷：
+
+`BFD: /system/bin/surfaceflinger: unknown type [0x13] section '.relr.dyn'`
+
+这是解析器不认识 Android 的 RELR 重定位段，**不是采样失败**。数字照常用。嫌吵：
+
+```bash
+perf report -i "$OUT/perf.data" --stdio "${SYM[@]}" 2>/dev/null | head -40
+```
+
+火焰图里 `vulkan.pastel.so` **不能展开成函数名**：`nm` 为 0 就是 strip。栈里的 `0xf09c…` 已经是地址级；要 C++ / `PixelRoutine` 名必须换未 strip 的 so，或 JIT 写 `/tmp/perf-PID.map`。
+
+`Thread<04>` 是 SwiftShader（marl）工作线程，活在 surfaceflinger / deskclock 进程里，不是 redroid 另起的进程。默认最多 16 条（见上节）。`--sort comm,dso` 会按线程拆开，每个 ~2–3% 看起来不大，**合计**才有意义：
+
+```bash
+perf report -i "$OUT/perf.data" --stdio --no-children --percent-limit 0.5 --sort dso | head -30
+perf report -i "$OUT/perf.data" --stdio --no-children --percent-limit 0.5 --sort comm | head -30
+```
+
+`grep swiftshader` 经常是空的：内核没有 `CONFIG_ANON_VMA_NAME` 时 maps 不带这个名字。改列可执行映射。
+
+**不要用「现在」的 `/proc/pid/maps` 去对采样里的 JIT 地址。** JIT 页会释放、再分配，地址 `0xffec27982000` 采完时可能已经没了。`perf.data` 里自带当时的映射记录：
+
+```bash
+# 采样当时有没有这块可执行内存（MMAP / MUNMAP）
+perf script -i "$OUT/perf.data" --show-mmap-events | grep -i 27982000
+# 仍没有：扩大一点（去掉末尾的页内偏移）
+perf script -i "$OUT/perf.data" --show-mmap-events | grep -i ffec2798
+```
+
+采的时候并行把 maps 记下来（和 perf 同时段，才对得上）：
+
+```bash
+( while sleep 1; do echo "==== $(date -Is) ===="; cat /proc/$SF/maps /proc/$DC/maps; done ) >"$OUT/maps-live.log" &
+MPID=$!
+# 这里跑原来的 perf record …
+kill $MPID
+```
+
+彻底解决：JIT 编译当时就写 `/tmp/perf-<pid>.map`（地址、长度、名字），不要事后猜 maps。
+
+```bash
+OUT=$(ls -d /home/f00589393/perf-redroid/*/ | sort | tail -1)
+SF=$(ps -eo pid,comm | awk '$2=="surfaceflinger"{print $1; exit}')
+DC=$(ps -eo pid,comm | awk '$2 ~ /deskclock/{print $1; exit}')
+echo "SF=$SF DC=$DC"
+awk '$2 ~ /x/' /proc/$SF/maps /proc/$DC/maps | tee "$OUT/maps-exec.txt"
+python3 - "$OUT" $SF $DC <<'PY'
+import os, sys
+from collections import Counter
+out, pids = sys.argv[1], sys.argv[2:]
+ranges = []
+for pid in pids:
+    p = "/proc/%s/maps" % pid
+    if not os.path.isfile(p):
+        continue
+    for line in open(p):
+        parts = line.split()
+        if len(parts) < 5 or "x" not in parts[1]:
+            continue
+        path = parts[5] if len(parts) > 5 else ""
+        if path and not path.startswith("[") and "memfd" not in path and "jit" not in path.lower():
+            continue
+        a, b = parts[0].split("-")
+        ranges.append((int(a, 16), int(b, 16), pid, path or "anon"))
+print("exec-anon ranges", ranges)
+script = os.path.join(out, "script-ip.txt")
+os.system("perf script -i %s/perf.data -F comm,ip > %s" % (out, script))
+n = jit = 0
+c = Counter()
+for line in open(script):
+    parts = line.split()
+    if len(parts) < 2:
+        continue
+    try:
+        ip = int(parts[-1], 16)
+    except ValueError:
+        continue
+    n += 1
+    for lo, hi, pid, path in ranges:
+        if lo <= ip < hi:
+            jit += 1
+            c[(pid, path, (ip - lo) & ~0x3f)] += 1
+            break
+print("samples", n, "in_anon_exec", jit, "pct", (100.0 * jit / n) if n else 0)
+for k, v in c.most_common(15):
+    print(" ", k, v)
+PY
+```
+
+若 `in_anon_exec` 占比高：热点就是像素 JIT，**不要改 pastel.so 里某个可见符号**；要函数名得写 `/tmp/perf-PID.map`（WP2）。若合计时间在 `libhwui` / `memcpy`：先减层或查拷贝。
+
+读报告（先按 **库/映射** 分桶，不要对着单个符号改指令）：
+
+```bash
+perf report -i "$OUT/perf.data" --stdio --no-children --percent-limit 1 --sort comm,dso | head -80
+perf report -i "$OUT/perf.data" --stdio --no-children --percent-limit 1 --sort comm,symbol | head -80
+```
+
+把 `dso` 列归进下表（同一条样本只算一次）：
+
+| 报告里出现 | 填哪一类 |
+|------------|----------|
+| `vulkan.pastel` / `libvk_swiftshader` / `[unknown]` 且 maps 有 `swiftshader_jit` | `swiftshader_jit`（再看 comm 是 deskclock 还是 surfaceflinger） |
+| `libhwui` / `libskia` / `libhwui.so` | Skia / HWUI |
+| `libEGL` / `libGLESv2` / `ANGLE` / `libfeature_support` | ANGLE 翻译 |
+| `memcpy` / `memmove` / `prepareForExternalUse` / `libc.so` 里拷贝很重 | AHB 按行拷贝 |
+| `libart` / `libdexfile` / `com.android.deskclock` 非渲染符号 | 应用业务 |
+| `libbinder` / 内核（本次 `:u` 采样应很少） | 先忽略，或回头查超卖 |
 
 | 排名 | 符号或占比类别 | 进程（应用 / surfaceflinger） | 约占 CPU% |
 |------|----------------|------------------------------|-----------|
