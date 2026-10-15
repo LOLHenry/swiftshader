@@ -163,7 +163,19 @@ Worker 既没有可开的任务、也没有可恢复的纤程时，调用 `waitF
 - 没有新排进来的活，就尝试从另一个随机 Worker 偷一个任务。偷到则立刻返回。
 - 没偷到，调用 `std::this_thread::yield()`，免得 marl 把操作系统饿死。
 
+这段循环有上限，源码里目前写死为 1 ms：
+
+```c++
+constexpr auto duration = std::chrono::milliseconds(1);
+```
+
+流程图里的 **Spin Timeout** 就是这个上限。超时仍没活，才去 `wait()` 睡觉。空转期间核是满的，并没有在做像素；只是不想立刻把线程交给 OS。
+
+把 1 ms 改成 100 µs，流程图不变，变的是红块有多宽：同一段空闲里，满核空转从 1.00 ms 收到 0.10 ms，约为 1/10。任务很稀、Worker 又多（例如 4 核上 16 条 Worker）时，省下的就是热点里那截 marl 空转。若新活经常落在 100 µs～1 ms 之间，缩短后可能已经睡觉，会多一次唤醒，这是代价。
+
 ![流程图](imgs/worker_spinforwork.svg)
+
+![1ms 对比 100µs：同一段空闲里空转窗口变窄](imgs/spin_timeout_1ms_vs_100us.svg)
 
 ### `marl::Scheduler::Worker::suspend()`
 
