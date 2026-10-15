@@ -1,5 +1,7 @@
 # `marl::Scheduler`
 
+English | [中文](scheduler.zh.md)
+
 Table of Contents:
 
 - [`marl::Scheduler`](#marlscheduler)

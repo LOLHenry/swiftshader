@@ -64,6 +64,10 @@ int main() {
 }
 ```
 
+## Documentation
+
+Scheduler internals: [docs/scheduler.md](docs/scheduler.md) | [中文](docs/scheduler.zh.md)
+
 ## Benchmarks
 
 Graphs of several microbenchmarks can be found [here](https://google.github.io/marl/benchmarks).
