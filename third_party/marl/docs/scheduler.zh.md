@@ -8,7 +8,7 @@
 
 - [`marl::Scheduler`](#marlscheduler)
   - [绑定](#绑定)
-  - [纤程](#纤程)
+  - [纤程（Fiber）](#纤程fiber)
   - [任务](#任务)
   - [工人](#工人)
     - [`marl::Scheduler::Worker::run()`](#marlschedulerworkerrun)
@@ -32,17 +32,17 @@
 绑定会写一份线程局部存储，把调度器和当前线程绑在一起。作用有两层：
 
 1. 调用 `marl::schedule()` 以及各种同步原语时，不必再传 `marl::Scheduler` 指针。
-2. 更重要的是：能拿到**当前线程正在执行的纤程**。`marl::ConditionVariable::wait()` 靠这个把当前纤程挂起、放进一个容器；`marl::ConditionVariable::notify_`xxx`()` 再把这些被挡住的纤程重新排进调度。
+2. 更重要的是：能拿到**当前线程正在执行的纤程（Fiber）**。`marl::ConditionVariable::wait()` 靠这个把当前纤程挂起、放进一个容器；`marl::ConditionVariable::notify_`xxx`()` 再把这些被挡住的纤程重新排进调度。
 
 每次绑定还会为调用线程建一个内部的[单线程工人](#单线程工人)。没有[多线程工人](#多线程工人)可用时，任务就排到这个工人上。解绑会等到该单线程工人上已排的任务都做完再返回。
 
-## 纤程
+## 纤程（Fiber）
 
-[纤程](https://en.wikipedia.org/wiki/Fiber_(computer_science))是一种很轻的协作式线程，只能在明确的让出点挂起和恢复。
+[纤程（Fiber）](https://en.wikipedia.org/wiki/Fiber_(computer_science))是一种很轻的协作式线程，只能在明确的让出点挂起和恢复。后文里的「纤程」都指 Fiber，和操作系统线程（Thread）不是一回事。
 
 目前没有统一、跨平台的纤程/协程标准库，所以 marl 为各平台和 ABI 自己实现了 `marl::OSFiber`。多数实现是汇编：保存/恢复被调用者保存的寄存器，并维护一块纤程栈。`marl::OSFiber` 是内部细节，不出现在公开 API 里。
 
-`marl::Scheduler::Fiber` 是对外的纤程接口，和 `marl::Scheduler` 绑得很紧。接口风格接近 `std::condition_variable`。
+`marl::Scheduler::Fiber` 是对外的纤程（Fiber）接口，和 `marl::Scheduler` 绑得很紧。接口风格接近 `std::condition_variable`。
 
 每个 `marl::Scheduler::Fiber` **永久**属于一个 `marl::Scheduler::Worker`，恢复时保证仍在挂起时的那条线程上。
 
@@ -76,7 +76,7 @@ wg.wait();
 调度器里有若干 `marl::Scheduler::Worker`。每个工人持有：
 
 - `work.tasks`：尚未开始的任务队列。
-- `work.fibers`：已挂起、可以恢复的纤程队列。
+- `work.fibers`：已挂起、可以恢复的纤程（Fiber）队列。
 - `work.waiting`：已挂起、在等恢复或超时的纤程队列。
 - `work.num`：与 `work.tasks.size() + work.fibers.size()` 保持一致的计数。
 - `work.numBlockedFibers`：当前卡在 [`suspend()`](#marlschedulerworkersuspend) 里的纤程数。
