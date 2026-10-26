@@ -31,6 +31,24 @@
     h2 { font-size: 20px; margin: 32px 0 12px; }
     .muted { color: var(--muted); }
     .lead { font-size: 17px; }
+    .widescreen {
+      aspect-ratio: 16 / 9;
+      width: min(100vw - 40px, 1280px);
+      max-width: none;
+      margin: 16px 0 8px;
+      margin-left: 50%;
+      transform: translateX(-50%);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      background: #fbf9f4;
+    }
+    .widescreen img {
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
     .card {
       background: var(--card);
       border: 1px solid var(--line);
@@ -99,6 +117,11 @@
   <div class="card answer">
     <p class="lead">一帧里 Worker 只出现两次：<strong>应用自己的 pastel 线程池</strong>画应用的像素，<strong>SurfaceFlinger 自己的 pastel 线程池</strong>做合成。中间提交命令、排队、拷到 AHardwareBuffer、上屏，都不是 Worker 做的。</p>
   </div>
+
+  <div class="widescreen">
+    <img src="MarlWorkerFrame.slide.zh.svg" alt="16比9流程图：从应用渲染循环到上屏，Worker 只出现两次">
+  </div>
+  <p class="muted">上图固定 16:9。单独全屏打开：<a href="MarlWorkerFrame.slide.zh.html">MarlWorkerFrame.slide.zh.html</a> · 矢量图：<a href="MarlWorkerFrame.slide.zh.svg">MarlWorkerFrame.slide.zh.svg</a> · PPT：<a href="MarlWorkerFrame.pptx">MarlWorkerFrame.pptx</a></p>
 
   <p class="legend">
     <span class="w">蓝：应用 Worker（Thread&lt;NN&gt;）</span>

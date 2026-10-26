@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" width="1600" height="900" role="img" aria-labelledby="title desc">
+<title id="title">从应用渲染循环到上屏：Worker 在哪</title>
+<desc id="desc">一帧里 Worker 只出现两次：应用 pastel 线程池画像素，SurfaceFlinger pastel 线程池做合成。中间提交、拷 AHB、上屏都不是 Worker。</desc>
+<rect width="1600" height="900" fill="#fbf9f4"/>
+<text x="32.0" y="44.0" text-anchor="start" font-family="sans-serif" font-size="32" font-weight="700" fill="#1c1b16">从应用渲染循环到上屏：Worker 在哪</text>
+<text x="32.0" y="72.0" text-anchor="start" font-family="sans-serif" font-size="15" font-weight="400" fill="#5c584e">redroid guest · vulkan.pastel.so · 一帧里 Worker 只出现两次（应用池 + SurfaceFlinger 池）</text>
+<rect x="1078.0" y="28.0" width="148.0" height="28.0" rx="14" fill="#d6e8f8" stroke="#1565c0" stroke-width="1.2"/>
+<text x="1152.0" y="47.0" text-anchor="middle" font-family="sans-serif" font-size="13" font-weight="700" fill="#1565c0">蓝：应用 Worker</text>
+<rect x="1236.0" y="28.0" width="148.0" height="28.0" rx="14" fill="#f0e4f6" stroke="#6a1b9a" stroke-width="1.2"/>
+<text x="1310.0" y="47.0" text-anchor="middle" font-family="sans-serif" font-size="13" font-weight="700" fill="#6a1b9a">紫：SF Worker</text>
+<rect x="1394.0" y="28.0" width="142.0" height="28.0" rx="14" fill="#f7f4ee" stroke="#c8c1b0" stroke-width="1.2"/>
+<text x="1465.0" y="47.0" text-anchor="middle" font-family="sans-serif" font-size="13" font-weight="700" fill="#5c584e">灰：其他线程</text>
+<rect x="32.0" y="96.0" width="284.8" height="108.0" rx="10" fill="#f7f4ee" stroke="#c8c1b0" stroke-width="1.6"/>
+<text x="48.0" y="124.0" text-anchor="start" font-family="sans-serif" font-size="13" font-weight="700" fill="#5c584e">显示</text>
+<text x="48.0" y="154.0" text-anchor="start" font-family="sans-serif" font-size="17" font-weight="700" fill="#1c1b16">1. Vsync 到了</text>
+<polygon points="319.8,143.0 341.8,150.0 319.8,157.0" fill="#9a9486"/>
+<rect x="344.8" y="96.0" width="284.8" height="108.0" rx="10" fill="#f7f4ee" stroke="#c8c1b0" stroke-width="1.6"/>
+<text x="360.8" y="124.0" text-anchor="start" font-family="sans-serif" font-size="13" font-weight="700" fill="#5c584e">应用 UI 线程</text>
+<text x="360.8" y="154.0" text-anchor="start" font-family="sans-serif" font-size="17" font-weight="700" fill="#1c1b16">2. 改界面、记 DisplayList</text>
+<polygon points="632.6,143.0 654.6,150.0 632.6,157.0" fill="#9a9486"/>
+<rect x="657.6" y="96.0" width="284.8" height="108.0" rx="10" fill="#f7f4ee" stroke="#c8c1b0" stroke-width="1.6"/>
+<text x="673.6" y="124.0" text-anchor="start" font-family="sans-serif" font-size="13" font-weight="700" fill="#5c584e">RenderThread / HWUI</text>
+<text x="673.6" y="154.0" text-anchor="start" font-family="sans-serif" font-size="17" font-weight="700" fill="#1c1b16">3. 变成 Vulkan 命令</text>
+<polygon points="945.4,143.0 967.4,150.0 945.4,157.0" fill="#9a9486"/>
+<rect x="970.4" y="96.0" width="284.8" height="108.0" rx="10" fill="#f7f4ee" stroke="#c8c1b0" stroke-width="1.6"/>
+<text x="986.4" y="124.0" text-anchor="start" font-family="sans-serif" font-size="13" font-weight="700" fill="#5c584e">Queue 线程</text>
+<text x="986.4" y="154.0" text-anchor="start" font-family="sans-serif" font-size="17" font-weight="700" fill="#1c1b16">4. vkQueueSubmit</text>
+<polygon points="1258.2,143.0 1280.2,150.0 1258.2,157.0" fill="#9a9486"/>
+<rect x="1283.2" y="96.0" width="284.8" height="108.0" rx="10" fill="#f7f4ee" stroke="#c8c1b0" stroke-width="1.6"/>
+<text x="1299.2" y="124.0" text-anchor="start" font-family="sans-serif" font-size="13" font-weight="700" fill="#5c584e">Renderer</text>
+<text x="1299.2" y="154.0" text-anchor="start" font-family="sans-serif" font-size="17" font-weight="700" fill="#1c1b16">5. 准备 / JIT Routine</text>
+<polygon points="1418.6,210.0 1432.6,210.0 1425.6,228.0" fill="#9a9486"/>
+<text x="32.0" y="242.0" text-anchor="start" font-family="sans-serif" font-size="15" font-weight="700" fill="#1565c0">应用进程 · vulkan.pastel.so</text>
+<rect x="32.0" y="254.0" width="363.0" height="108.0" rx="10" fill="#d6e8f8" stroke="#1565c0" stroke-width="1.6"/>
+<rect x="32.0" y="254.0" width="7" height="108.0" rx="2" fill="#1565c0"/>
+<text x="48.0" y="282.0" text-anchor="start" font-family="sans-serif" font-size="13" font-weight="700" fill="#1565c0">应用 Worker</text>
+<text x="48.0" y="312.0" text-anchor="start" font-family="sans-serif" font-size="17" font-weight="700" fill="#1c1b16">6. batch 入队  marl::schedule</text>
+<polygon points="398.0,301.0 420.0,308.0 398.0,315.0" fill="#9a9486"/>
+<rect x="423.0" y="254.0" width="363.0" height="108.0" rx="10" fill="#d6e8f8" stroke="#1565c0" stroke-width="1.6"/>
+<rect x="423.0" y="254.0" width="7" height="108.0" rx="2" fill="#1565c0"/>
+<text x="439.0" y="282.0" text-anchor="start" font-family="sans-serif" font-size="13" font-weight="700" fill="#1565c0">应用 Worker</text>
+<text x="439.0" y="312.0" text-anchor="start" font-family="sans-serif" font-size="17" font-weight="700" fill="#1c1b16">7. 顶点 → 图元 → 像素</text>
+<polygon points="789.0,301.0 811.0,308.0 789.0,315.0" fill="#9a9486"/>
+<rect x="814.0" y="254.0" width="363.0" height="108.0" rx="10" fill="#f7f4ee" stroke="#c8c1b0" stroke-width="1.6"/>
+<text x="830.0" y="282.0" text-anchor="start" font-family="sans-serif" font-size="13" font-weight="700" fill="#5c584e">CPU 内存</text>
+<text x="830.0" y="312.0" text-anchor="start" font-family="sans-serif" font-size="17" font-weight="700" fill="#1c1b16">8. 颜色在 vk::Image</text>
+<polygon points="1180.0,301.0 1202.0,308.0 1180.0,315.0" fill="#9a9486"/>
+<rect x="1205.0" y="254.0" width="363.0" height="108.0" rx="10" fill="#f7f4ee" stroke="#c8c1b0" stroke-width="1.6"/>
+<text x="1221.0" y="282.0" text-anchor="start" font-family="sans-serif" font-size="13" font-weight="700" fill="#5c584e">Android 导出</text>
+<text x="1221.0" y="312.0" text-anchor="start" font-family="sans-serif" font-size="17" font-weight="700" fill="#1c1b16">9. memcpy 到 AHB，queueBuffer</text>
+<polygon points="1379.5,368.0 1393.5,368.0 1386.5,386.0" fill="#9a9486"/>
+<text x="32.0" y="400.0" text-anchor="start" font-family="sans-serif" font-size="15" font-weight="700" fill="#6a1b9a">SurfaceFlinger · 另一份 ICD，另一套 ThreadCount</text>
+<rect x="32.0" y="412.0" width="363.0" height="108.0" rx="10" fill="#f0e4f6" stroke="#6a1b9a" stroke-width="1.6"/>
+<rect x="32.0" y="412.0" width="7" height="108.0" rx="2" fill="#6a1b9a"/>
+<text x="48.0" y="440.0" text-anchor="start" font-family="sans-serif" font-size="13" font-weight="700" fill="#6a1b9a">SF 主线程</text>
+<text x="48.0" y="470.0" text-anchor="start" font-family="sans-serif" font-size="17" font-weight="700" fill="#1c1b16">10. 排图层、Client 合成</text>
+<polygon points="398.0,459.0 420.0,466.0 398.0,473.0" fill="#9a9486"/>
+<rect x="423.0" y="412.0" width="363.0" height="108.0" rx="10" fill="#f0e4f6" stroke="#6a1b9a" stroke-width="1.6"/>
+<rect x="423.0" y="412.0" width="7" height="108.0" rx="2" fill="#6a1b9a"/>
+<text x="439.0" y="440.0" text-anchor="start" font-family="sans-serif" font-size="13" font-weight="700" fill="#6a1b9a">SF Queue</text>
+<text x="439.0" y="470.0" text-anchor="start" font-family="sans-serif" font-size="17" font-weight="700" fill="#1c1b16">11. 自己的 vkQueueSubmit</text>
+<polygon points="789.0,459.0 811.0,466.0 789.0,473.0" fill="#9a9486"/>
+<rect x="814.0" y="412.0" width="363.0" height="108.0" rx="10" fill="#f0e4f6" stroke="#6a1b9a" stroke-width="1.6"/>
+<rect x="814.0" y="412.0" width="7" height="108.0" rx="2" fill="#6a1b9a"/>
+<text x="830.0" y="440.0" text-anchor="start" font-family="sans-serif" font-size="13" font-weight="700" fill="#6a1b9a">SF Worker</text>
+<text x="830.0" y="470.0" text-anchor="start" font-family="sans-serif" font-size="17" font-weight="700" fill="#1c1b16">12. 采样各层 + 片元写出</text>
+<polygon points="1180.0,459.0 1202.0,466.0 1180.0,473.0" fill="#9a9486"/>
+<rect x="1205.0" y="412.0" width="363.0" height="108.0" rx="10" fill="#e4f0e2" stroke="#2e7d32" stroke-width="1.6"/>
+<text x="1221.0" y="440.0" text-anchor="start" font-family="sans-serif" font-size="13" font-weight="700" fill="#2e7d32">显示 / redroid</text>
+<text x="1221.0" y="470.0" text-anchor="start" font-family="sans-serif" font-size="17" font-weight="700" fill="#1c1b16">13. 上屏</text>
+<rect x="32.0" y="548.0" width="1536.0" height="320.0" rx="10" fill="#ffffff" stroke="#c8c1b0" stroke-width="1.2"/>
+<text x="52.0" y="584.0" text-anchor="start" font-family="sans-serif" font-size="18" font-weight="700" fill="#1c1b16">一块 batch 在 Worker 里（步骤 7 / 12）</text>
+<text x="52.0" y="620.0" text-anchor="start" font-family="sans-serif" font-size="15" font-weight="400" fill="#1c1b16">DrawCall::run  →  marl::schedule(batch)  →  processVertices（VertexRoutine）  →  processPrimitives（SetupRoutine）  →  processPixels（PixelRoutine + sampler，四像素一组）</text>
+<text x="52.0" y="650.0" text-anchor="start" font-family="sans-serif" font-size="15" font-weight="400" fill="#1c1b16">没活：spinForWork 空转一会儿，再 wait() 睡觉。挡住了：suspend，切纤程（Fiber），同一条 OS 线程接着干别的。</text>
+<text x="52.0" y="686.0" text-anchor="start" font-family="sans-serif" font-size="14" font-weight="400" fill="#5c584e">不是 Worker：UI 线程、RenderThread、Queue、SF 主线程。绑核只限制坐哪几把椅子；条数认 cwd 的 ThreadCount，否则 min(看见的逻辑核, 16)。应用和 SF 各走一遍这条链。</text>
+<rect x="52.0" y="716.0" width="736.0" height="128.0" rx="8" fill="#d6e8f8" stroke="#1565c0" stroke-width="1.2"/>
+<text x="72.0" y="746.0" text-anchor="start" font-family="sans-serif" font-size="16" font-weight="700" fill="#1565c0">应用 Worker 池</text>
+<text x="72.0" y="774.0" text-anchor="start" font-family="sans-serif" font-size="14" font-weight="400" fill="#1c1b16">画这一帧应用自己的像素。Thread&lt;NN&gt; 在应用进程里。</text>
+<text x="72.0" y="800.0" text-anchor="start" font-family="sans-serif" font-size="14" font-weight="400" fill="#5c584e">ini / ThreadCount 看应用进程 cwd。</text>
+<text x="72.0" y="826.0" text-anchor="start" font-family="sans-serif" font-size="14" font-weight="400" fill="#5c584e">perf：应用侧 PixelRoutine / sampler。</text>
+<rect x="808.0" y="716.0" width="736.0" height="128.0" rx="8" fill="#f0e4f6" stroke="#6a1b9a" stroke-width="1.2"/>
+<text x="828.0" y="746.0" text-anchor="start" font-family="sans-serif" font-size="16" font-weight="700" fill="#6a1b9a">SF Worker 池</text>
+<text x="828.0" y="774.0" text-anchor="start" font-family="sans-serif" font-size="14" font-weight="400" fill="#1c1b16">Client 合成时再画一遍。另一份 vulkan.pastel.so。</text>
+<text x="828.0" y="800.0" text-anchor="start" font-family="sans-serif" font-size="14" font-weight="400" fill="#5c584e">ini / ThreadCount 看 SurfaceFlinger 的 cwd。</text>
+<text x="828.0" y="826.0" text-anchor="start" font-family="sans-serif" font-size="14" font-weight="400" fill="#5c584e">秒表场景常常比应用侧更热（全屏采样）。</text>
+</svg>
