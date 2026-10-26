@@ -90,7 +90,9 @@ STEPS = [
     },
 ]
 
-ROWS = [(0, 5), (5, 9), (9, 13)]
+# 5-column snake: 1→2→3→4→5 ↓ 6←7←8←9? No: 5 ↓ onto 6 (right),
+# then left 6→7→8→9, then 9 ↓ onto 10, then 10→11→12→13.
+CARD_COL = (1, 3, 5, 7, 9)  # CSS grid columns for the five card slots
 
 
 def rich(text: str) -> str:
@@ -115,13 +117,43 @@ def card(step: dict) -> str:
     )
 
 
-def row_html(start: int, end: int) -> str:
+def placed_card(step: dict, col: int, row: int) -> str:
+    html = card(step)
+    return html.replace(
+        "<article ",
+        f'<article style="grid-column:{col};grid-row:{row}" ',
+        1,
+    )
+
+
+def arr(ch: str, col: int, row: int) -> str:
+    return (
+        f'<div class="arr" style="grid-column:{col};grid-row:{row}" '
+        f'aria-hidden="true">{ch}</div>'
+    )
+
+
+def flow_html() -> str:
+    """Snake: 1→5 down to 6, row 2 right-to-left to 9, down to 10→13."""
     bits = []
-    for i in range(start, end):
-        if i > start:
-            bits.append('<div class="arr" aria-hidden="true">→</div>')
-        bits.append(card(STEPS[i]))
-    return '<div class="row">\n' + "\n".join(bits) + "\n</div>"
+    # Row 1 LTR: slots 0-4 = steps 1-5
+    for i in range(5):
+        bits.append(placed_card(STEPS[i], CARD_COL[i], 1))
+        if i < 4:
+            bits.append(arr("→", CARD_COL[i] + 1, 1))
+    bits.append(arr("↓", CARD_COL[4], 2))
+    # Row 2 RTL: slot 4=6, 3=7, 2=8, 1=9
+    for i, slot in enumerate((4, 3, 2, 1)):
+        bits.append(placed_card(STEPS[5 + i], CARD_COL[slot], 3))
+    for slot in (4, 3, 2):
+        bits.append(arr("←", CARD_COL[slot] - 1, 3))
+    bits.append(arr("↓", CARD_COL[1], 4))
+    # Row 3 LTR: slot 1=10, 2=11, 3=12, 4=13
+    for i, slot in enumerate((1, 2, 3, 4)):
+        bits.append(placed_card(STEPS[9 + i], CARD_COL[slot], 5))
+        if i < 3:
+            bits.append(arr("→", CARD_COL[slot] + 1, 5))
+    return "\n".join(bits)
 
 
 HTML = r"""<!DOCTYPE html>
@@ -213,35 +245,24 @@ HTML = r"""<!DOCTYPE html>
     .flow {
       flex: 1 1 auto;
       min-height: 0;
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }
-    .row {
-      flex: 1 1 0;
-      min-height: 0;
-      display: flex;
-      align-items: stretch;
-    }
-    .drop {
-      flex: 0 0 18px;
-      text-align: right;
-      padding-right: 18%;
-      color: #5c584e;
-      font-size: 16px;
-      line-height: 18px;
+      display: grid;
+      grid-template-columns: 1fr 22px 1fr 22px 1fr 22px 1fr 22px 1fr;
+      grid-template-rows: 1fr 22px 1fr 22px 1fr;
+      column-gap: 0;
+      row-gap: 0;
     }
     .arr {
-      flex: 0 0 22px;
       display: flex;
       align-items: center;
       justify-content: center;
       color: #5c584e;
-      font-size: 16px;
+      font-size: 20px;
+      font-weight: 700;
+      line-height: 1;
     }
     .step {
-      flex: 1 1 0;
       min-width: 0;
+      min-height: 0;
       background: #fff;
       border: 1px solid #d9d3c5;
       border-radius: 8px;
@@ -428,44 +449,65 @@ def build_svg() -> str:
             return "#f3e8f8", "#ce93d8", "#6a1b9a"
         return "#ffffff", "#d9d3c5", "#5c584e"
 
+    gap = 22
+    left, right = 24, 1896
+    bw = (right - left - gap * 4) / 5
+    h = 196
     ys = [148, 368, 588]
-    heights = [204, 204, 204]
-    for r, ((a, b), y, h) in enumerate(zip(ROWS, ys, heights)):
-        n = b - a
-        gap = 22
-        left, right = 24, 1896
-        bw = (right - left - gap * (n - 1)) / n
-        for i, step in enumerate(STEPS[a:b]):
-            x = left + i * (bw + gap)
-            fill, stroke, who_c = kind_fill(step["kind"])
+
+    def slot_x(slot: int) -> float:
+        return left + slot * (bw + gap)
+
+    def draw_box(step, slot, y):
+        x = slot_x(slot)
+        fill, stroke, who_c = kind_fill(step["kind"])
+        parts.append(
+            f'<rect x="{x:.1f}" y="{y}" width="{bw:.1f}" height="{h}" rx="8" fill="{fill}" stroke="{stroke}"/>'
+        )
+        tw = step["title"].replace("`", "")
+        parts.append(
+            f'<text x="{x + 12:.1f}" y="{y + 22}" font-family="sans-serif" font-size="12" font-weight="700" fill="{who_c}">{escape(step["who"])}</text>'
+        )
+        ty = y + 44
+        for line in wrap_plain(tw, int(bw / 15))[:2]:
             parts.append(
-                f'<rect x="{x:.1f}" y="{y}" width="{bw:.1f}" height="{h}" rx="8" fill="{fill}" stroke="{stroke}"/>'
+                f'<text x="{x + 12:.1f}" y="{ty}" font-family="sans-serif" font-size="15" font-weight="700" fill="#1c1b16">{escape(line)}</text>'
             )
-            tw = step["title"].replace("`", "")
+            ty += 20
+        for line in wrap_plain(step["detail"], int(bw / 13))[:5]:
             parts.append(
-                f'<text x="{x + 12:.1f}" y="{y + 22}" font-family="sans-serif" font-size="12" font-weight="700" fill="{who_c}">{escape(step["who"])}</text>'
+                f'<text x="{x + 12:.1f}" y="{ty + 4}" font-family="sans-serif" font-size="13" fill="#5c584e">{escape(line)}</text>'
             )
-            title_lines = wrap_plain(tw, int(bw / 15))
-            ty = y + 44
-            for line in title_lines[:2]:
-                parts.append(
-                    f'<text x="{x + 12:.1f}" y="{ty}" font-family="sans-serif" font-size="15" font-weight="700" fill="#1c1b16">{escape(line)}</text>'
-                )
-                ty += 20
-            for line in wrap_plain(step["detail"], int(bw / 13))[:5]:
-                parts.append(
-                    f'<text x="{x + 12:.1f}" y="{ty + 4}" font-family="sans-serif" font-size="13" fill="#5c584e">{escape(line)}</text>'
-                )
-                ty += 18
-            if i < n - 1:
-                ax = x + bw + 3
-                parts.append(
-                    f'<text x="{ax + 8:.1f}" y="{y + h / 2 + 5:.1f}" text-anchor="middle" font-family="sans-serif" font-size="16" fill="#5c584e">→</text>'
-                )
-        if r < 2:
-            parts.append(
-                f'<text x="1700" y="{y + h + 16}" text-anchor="middle" font-family="sans-serif" font-size="16" fill="#5c584e">↓</text>'
-            )
+            ty += 18
+
+    def arrow_h(slot_from, slot_to, y, ch):
+        x1 = slot_x(slot_from) + bw
+        x2 = slot_x(slot_to)
+        mx = (x1 + x2) / 2
+        parts.append(
+            f'<text x="{mx:.1f}" y="{y + h / 2 + 6:.1f}" text-anchor="middle" font-family="sans-serif" font-size="18" font-weight="700" fill="#5c584e">{ch}</text>'
+        )
+
+    def arrow_v(slot, y0, y1):
+        cx = slot_x(slot) + bw / 2
+        parts.append(
+            f'<text x="{cx:.1f}" y="{(y0 + h + y1) / 2 + 6:.1f}" text-anchor="middle" font-family="sans-serif" font-size="18" font-weight="700" fill="#5c584e">↓</text>'
+        )
+
+    for i in range(5):
+        draw_box(STEPS[i], i, ys[0])
+        if i < 4:
+            arrow_h(i, i + 1, ys[0], "→")
+    arrow_v(4, ys[0], ys[1])
+    for i, slot in enumerate((4, 3, 2, 1)):
+        draw_box(STEPS[5 + i], slot, ys[1])
+    for slot in (4, 3, 2):
+        arrow_h(slot, slot - 1, ys[1], "←")
+    arrow_v(1, ys[1], ys[2])
+    for i, slot in enumerate((1, 2, 3, 4)):
+        draw_box(STEPS[9 + i], slot, ys[2])
+        if i < 3:
+            arrow_h(slot, slot + 1, ys[2], "→")
 
     parts.append('<rect x="24" y="804" width="980" height="232" rx="8" fill="#ffffff" stroke="#d9d3c5"/>')
     parts.append(
@@ -520,12 +562,7 @@ def build_svg() -> str:
 
 
 def main():
-    rows = []
-    for i, (a, b) in enumerate(ROWS):
-        rows.append(row_html(a, b))
-        if i < len(ROWS) - 1:
-            rows.append('<div class="drop">↓</div>')
-    html = HTML.replace("__ROWS__", "\n".join(rows))
+    html = HTML.replace("__ROWS__", flow_html())
     OUT_HTML.write_text(html, encoding="utf-8")
     svg = build_svg()
     OUT_SVG.write_text(svg, encoding="utf-8")

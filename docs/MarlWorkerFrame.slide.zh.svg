@@ -12,85 +12,87 @@
 <rect x="24" y="84" width="1872" height="52" rx="8" fill="#e8f0e4" stroke="#b7c9b0"/>
 <text x="40" y="106" font-family="sans-serif" font-size="16" fill="#1c1b16">一帧里 Worker 只出现两次：应用自己的 pastel 线程池画应用的像素，SurfaceFlinger 自己的 pastel 线程池做合成。</text>
 <text x="40" y="126" font-family="sans-serif" font-size="16" fill="#1c1b16">中间提交命令、排队、拷到 AHardwareBuffer、上屏，都不是 Worker 做的。</text>
-<rect x="24.0" y="148" width="356.8" height="204" rx="8" fill="#ffffff" stroke="#d9d3c5"/>
+<rect x="24.0" y="148" width="356.8" height="196" rx="8" fill="#ffffff" stroke="#d9d3c5"/>
 <text x="36.0" y="170" font-family="sans-serif" font-size="12" font-weight="700" fill="#5c584e">显示 / Choreographer</text>
 <text x="36.0" y="192" font-family="sans-serif" font-size="15" font-weight="700" fill="#1c1b16">1. Vsync 到了</text>
 <text x="36.0" y="216" font-family="sans-serif" font-size="13" fill="#5c584e">系统按目标帧率（如 30）发垂直同步。应用主线程被叫醒，开</text>
 <text x="36.0" y="234" font-family="sans-serif" font-size="13" fill="#5c584e">始这一帧。</text>
-<text x="391.8" y="255.0" text-anchor="middle" font-family="sans-serif" font-size="16" fill="#5c584e">→</text>
-<rect x="402.8" y="148" width="356.8" height="204" rx="8" fill="#ffffff" stroke="#d9d3c5"/>
+<text x="391.8" y="252.0" text-anchor="middle" font-family="sans-serif" font-size="18" font-weight="700" fill="#5c584e">→</text>
+<rect x="402.8" y="148" width="356.8" height="196" rx="8" fill="#ffffff" stroke="#d9d3c5"/>
 <text x="414.8" y="170" font-family="sans-serif" font-size="12" font-weight="700" fill="#5c584e">应用 UI 线程</text>
 <text x="414.8" y="192" font-family="sans-serif" font-size="15" font-weight="700" fill="#1c1b16">2. 改界面、记 DisplayList</text>
 <text x="414.8" y="216" font-family="sans-serif" font-size="13" fill="#5c584e">秒表改数字、invalidate。真正画图不在这条线程，交给 Ren</text>
 <text x="414.8" y="234" font-family="sans-serif" font-size="13" fill="#5c584e">derThread。</text>
-<text x="770.6" y="255.0" text-anchor="middle" font-family="sans-serif" font-size="16" fill="#5c584e">→</text>
-<rect x="781.6" y="148" width="356.8" height="204" rx="8" fill="#ffffff" stroke="#d9d3c5"/>
+<text x="770.6" y="252.0" text-anchor="middle" font-family="sans-serif" font-size="18" font-weight="700" fill="#5c584e">→</text>
+<rect x="781.6" y="148" width="356.8" height="196" rx="8" fill="#ffffff" stroke="#d9d3c5"/>
 <text x="793.6" y="170" font-family="sans-serif" font-size="12" font-weight="700" fill="#5c584e">应用 RenderThread + HWUI / Skia</text>
 <text x="793.6" y="192" font-family="sans-serif" font-size="15" font-weight="700" fill="#1c1b16">3. 把 DisplayList 变成 Vulkan 命令</text>
 <text x="793.6" y="216" font-family="sans-serif" font-size="13" fill="#5c584e">GLES 会先经 ANGLE 再进 pastel；Vulkan 直接进 pastel。这</text>
 <text x="793.6" y="234" font-family="sans-serif" font-size="13" fill="#5c584e">里是 vkCmdDraw 等，只往命令缓冲里记，几乎不算像素。</text>
-<text x="1149.4" y="255.0" text-anchor="middle" font-family="sans-serif" font-size="16" fill="#5c584e">→</text>
-<rect x="1160.4" y="148" width="356.8" height="204" rx="8" fill="#ffffff" stroke="#d9d3c5"/>
+<text x="1149.4" y="252.0" text-anchor="middle" font-family="sans-serif" font-size="18" font-weight="700" fill="#5c584e">→</text>
+<rect x="1160.4" y="148" width="356.8" height="196" rx="8" fill="#ffffff" stroke="#d9d3c5"/>
 <text x="1172.4" y="170" font-family="sans-serif" font-size="12" font-weight="700" fill="#5c584e">应用 Vulkan Queue 线程（Queue&lt;…&gt;）</text>
 <text x="1172.4" y="192" font-family="sans-serif" font-size="15" font-weight="700" fill="#1c1b16">4. vkQueueSubmit：命令真正开始执行</text>
 <text x="1172.4" y="216" font-family="sans-serif" font-size="13" fill="#5c584e">Queue::submit 把任务丢进内部队列；taskLoop 里 bind() 调</text>
 <text x="1172.4" y="234" font-family="sans-serif" font-size="13" fill="#5c584e">度器后逐条执行命令缓冲。这条线程不是 Thread&lt;NN&gt;。</text>
-<text x="1528.2" y="255.0" text-anchor="middle" font-family="sans-serif" font-size="16" fill="#5c584e">→</text>
-<rect x="1539.2" y="148" width="356.8" height="204" rx="8" fill="#ffffff" stroke="#d9d3c5"/>
+<text x="1528.2" y="252.0" text-anchor="middle" font-family="sans-serif" font-size="18" font-weight="700" fill="#5c584e">→</text>
+<rect x="1539.2" y="148" width="356.8" height="196" rx="8" fill="#ffffff" stroke="#d9d3c5"/>
 <text x="1551.2" y="170" font-family="sans-serif" font-size="12" font-weight="700" fill="#5c584e">SwiftShader Renderer</text>
 <text x="1551.2" y="192" font-family="sans-serif" font-size="15" font-weight="700" fill="#1c1b16">5. Renderer::draw：为这次绘制准备 Routine</text>
 <text x="1551.2" y="216" font-family="sans-serif" font-size="13" fill="#5c584e">按管线状态找或现场 JIT：VertexRoutine、SetupRoutine、P</text>
 <text x="1551.2" y="234" font-family="sans-serif" font-size="13" fill="#5c584e">ixelRoutine、sampler。第一次会编，之后复用。</text>
-<text x="1700" y="368" text-anchor="middle" font-family="sans-serif" font-size="16" fill="#5c584e">↓</text>
-<rect x="24.0" y="368" width="451.5" height="204" rx="8" fill="#e3eef9" stroke="#90b4e0"/>
-<text x="36.0" y="390" font-family="sans-serif" font-size="12" font-weight="700" fill="#1565c0">应用 Worker · marl::schedule</text>
-<text x="36.0" y="412" font-family="sans-serif" font-size="15" font-weight="700" fill="#1c1b16">6. 切成 batch，丢进线程池 —— Worker 从这里开始干活</text>
-<text x="36.0" y="436" font-family="sans-serif" font-size="13" fill="#5c584e">DrawCall::run 按最多约 128 个图元一块 marl::schedule。哪条 Worker 空</text>
-<text x="36.0" y="454" font-family="sans-serif" font-size="13" fill="#5c584e">谁拿。没有任务图引擎。</text>
-<text x="486.5" y="475.0" text-anchor="middle" font-family="sans-serif" font-size="16" fill="#5c584e">→</text>
-<rect x="497.5" y="368" width="451.5" height="204" rx="8" fill="#e3eef9" stroke="#90b4e0"/>
-<text x="509.5" y="390" font-family="sans-serif" font-size="12" font-weight="700" fill="#1565c0">同一条应用 Worker 上顺序做完一块</text>
-<text x="509.5" y="412" font-family="sans-serif" font-size="15" font-weight="700" fill="#1c1b16">7. 顶点 → 图元 → 像素</text>
-<text x="509.5" y="436" font-family="sans-serif" font-size="13" fill="#5c584e">processVertices 跑顶点 JIT；processPrimitives 裁剪、装配、边方程；pr</text>
-<text x="509.5" y="454" font-family="sans-serif" font-size="13" fill="#5c584e">ocessPixels 四像素一组光栅化 + 片元 + 采样 + 写颜色/深度。perf 里的 </text>
-<text x="509.5" y="472" font-family="sans-serif" font-size="13" fill="#5c584e">PixelRoutine / sampler 主要在这。</text>
-<text x="960.0" y="475.0" text-anchor="middle" font-family="sans-serif" font-size="16" fill="#5c584e">→</text>
-<rect x="971.0" y="368" width="451.5" height="204" rx="8" fill="#ffffff" stroke="#d9d3c5"/>
-<text x="983.0" y="390" font-family="sans-serif" font-size="12" font-weight="700" fill="#5c584e">应用进程 · CPU 上的 vk::Image</text>
-<text x="983.0" y="412" font-family="sans-serif" font-size="15" font-weight="700" fill="#1c1b16">8. 这一帧的颜色已经在内存里</text>
-<text x="983.0" y="436" font-family="sans-serif" font-size="13" fill="#5c584e">没有 GPU framebuffer。Queue 在 fence 前会 renderer-&gt;synchronize()，等</text>
-<text x="983.0" y="454" font-family="sans-serif" font-size="13" fill="#5c584e">所有 batch 做完。</text>
-<text x="1433.5" y="475.0" text-anchor="middle" font-family="sans-serif" font-size="16" fill="#5c584e">→</text>
-<rect x="1444.5" y="368" width="451.5" height="204" rx="8" fill="#ffffff" stroke="#d9d3c5"/>
-<text x="1456.5" y="390" font-family="sans-serif" font-size="12" font-weight="700" fill="#5c584e">应用 · Android 图像导出</text>
-<text x="1456.5" y="412" font-family="sans-serif" font-size="15" font-weight="700" fill="#1c1b16">9. 拷到 AHardwareBuffer，交给 BufferQueue</text>
-<text x="1456.5" y="436" font-family="sans-serif" font-size="13" fill="#5c584e">vkQueueSignalReleaseImageANDROID → 按行 memcpy 到 AHB（memfd）。然后</text>
-<text x="1456.5" y="454" font-family="sans-serif" font-size="13" fill="#5c584e"> queueBuffer 给 SurfaceFlinger。这一步常是 memcpy 热点，不是 Worker </text>
-<text x="1456.5" y="472" font-family="sans-serif" font-size="13" fill="#5c584e">空转。</text>
-<text x="1700" y="588" text-anchor="middle" font-family="sans-serif" font-size="16" fill="#5c584e">↓</text>
-<rect x="24.0" y="588" width="451.5" height="204" rx="8" fill="#f3e8f8" stroke="#ce93d8"/>
-<text x="36.0" y="610" font-family="sans-serif" font-size="12" font-weight="700" fill="#6a1b9a">SurfaceFlinger 主线程</text>
-<text x="36.0" y="632" font-family="sans-serif" font-size="15" font-weight="700" fill="#1c1b16">10. 合成这一屏：各层排在哪</text>
-<text x="36.0" y="656" font-family="sans-serif" font-size="13" fill="#5c584e">读应用刚交来的 buffer，加上状态栏、壁纸等。能走 HWC 直通就少算像素；</text>
-<text x="36.0" y="674" font-family="sans-serif" font-size="13" fill="#5c584e">走 Client 合成就要再画一遍。</text>
-<text x="486.5" y="695.0" text-anchor="middle" font-family="sans-serif" font-size="16" fill="#5c584e">→</text>
-<rect x="497.5" y="588" width="451.5" height="204" rx="8" fill="#f3e8f8" stroke="#ce93d8"/>
-<text x="509.5" y="610" font-family="sans-serif" font-size="12" font-weight="700" fill="#6a1b9a">SF 的 pastel（另一份 ICD）</text>
-<text x="509.5" y="632" font-family="sans-serif" font-size="15" font-weight="700" fill="#1c1b16">11. SF 自己的 vkQueueSubmit</text>
-<text x="509.5" y="656" font-family="sans-serif" font-size="13" fill="#5c584e">合成 shader 再走一遍 4→7，但是 SF 进程里另一套 Worker，ini、ThreadC</text>
-<text x="509.5" y="674" font-family="sans-serif" font-size="13" fill="#5c584e">ount 各算各的。</text>
-<text x="960.0" y="695.0" text-anchor="middle" font-family="sans-serif" font-size="16" fill="#5c584e">→</text>
-<rect x="971.0" y="588" width="451.5" height="204" rx="8" fill="#e3eef9" stroke="#90b4e0"/>
-<text x="983.0" y="610" font-family="sans-serif" font-size="12" font-weight="700" fill="#1565c0">SF Worker · Thread&lt;NN&gt;</text>
-<text x="983.0" y="632" font-family="sans-serif" font-size="15" font-weight="700" fill="#1c1b16">12. 采样各层、做片元、写出合成结果</text>
-<text x="983.0" y="656" font-family="sans-serif" font-size="13" fill="#5c584e">秒表场景里 SF 侧 PixelRoutine + bilinear sampler 经常比应用侧更热：全</text>
-<text x="983.0" y="674" font-family="sans-serif" font-size="13" fill="#5c584e">屏图层、逐像素采样。</text>
-<text x="1433.5" y="695.0" text-anchor="middle" font-family="sans-serif" font-size="16" fill="#5c584e">→</text>
-<rect x="1444.5" y="588" width="451.5" height="204" rx="8" fill="#ffffff" stroke="#d9d3c5"/>
-<text x="1456.5" y="610" font-family="sans-serif" font-size="12" font-weight="700" fill="#5c584e">显示 / redroid</text>
-<text x="1456.5" y="632" font-family="sans-serif" font-size="15" font-weight="700" fill="#1c1b16">13. 上屏</text>
-<text x="1456.5" y="656" font-family="sans-serif" font-size="13" fill="#5c584e">合成结果进 framebuffer / 虚拟屏。scrcpy 另走一条编码，不是这条 paste</text>
-<text x="1456.5" y="674" font-family="sans-serif" font-size="13" fill="#5c584e">l Worker。</text>
+<text x="1717.6" y="362.0" text-anchor="middle" font-family="sans-serif" font-size="18" font-weight="700" fill="#5c584e">↓</text>
+<rect x="1539.2" y="368" width="356.8" height="196" rx="8" fill="#e3eef9" stroke="#90b4e0"/>
+<text x="1551.2" y="390" font-family="sans-serif" font-size="12" font-weight="700" fill="#1565c0">应用 Worker · marl::schedule</text>
+<text x="1551.2" y="412" font-family="sans-serif" font-size="15" font-weight="700" fill="#1c1b16">6. 切成 batch，丢进线程池 —— Worker 从这里开</text>
+<text x="1551.2" y="432" font-family="sans-serif" font-size="15" font-weight="700" fill="#1c1b16">始干活</text>
+<text x="1551.2" y="456" font-family="sans-serif" font-size="13" fill="#5c584e">DrawCall::run 按最多约 128 个图元一块 marl::schedule。</text>
+<text x="1551.2" y="474" font-family="sans-serif" font-size="13" fill="#5c584e">哪条 Worker 空谁拿。没有任务图引擎。</text>
+<rect x="1160.4" y="368" width="356.8" height="196" rx="8" fill="#e3eef9" stroke="#90b4e0"/>
+<text x="1172.4" y="390" font-family="sans-serif" font-size="12" font-weight="700" fill="#1565c0">同一条应用 Worker 上顺序做完一块</text>
+<text x="1172.4" y="412" font-family="sans-serif" font-size="15" font-weight="700" fill="#1c1b16">7. 顶点 → 图元 → 像素</text>
+<text x="1172.4" y="436" font-family="sans-serif" font-size="13" fill="#5c584e">processVertices 跑顶点 JIT；processPrimitives 裁剪、装</text>
+<text x="1172.4" y="454" font-family="sans-serif" font-size="13" fill="#5c584e">配、边方程；processPixels 四像素一组光栅化 + 片元 + 采</text>
+<text x="1172.4" y="472" font-family="sans-serif" font-size="13" fill="#5c584e">样 + 写颜色/深度。perf 里的 PixelRoutine / sampler 主要</text>
+<text x="1172.4" y="490" font-family="sans-serif" font-size="13" fill="#5c584e">在这。</text>
+<rect x="781.6" y="368" width="356.8" height="196" rx="8" fill="#ffffff" stroke="#d9d3c5"/>
+<text x="793.6" y="390" font-family="sans-serif" font-size="12" font-weight="700" fill="#5c584e">应用进程 · CPU 上的 vk::Image</text>
+<text x="793.6" y="412" font-family="sans-serif" font-size="15" font-weight="700" fill="#1c1b16">8. 这一帧的颜色已经在内存里</text>
+<text x="793.6" y="436" font-family="sans-serif" font-size="13" fill="#5c584e">没有 GPU framebuffer。Queue 在 fence 前会 renderer-&gt;sy</text>
+<text x="793.6" y="454" font-family="sans-serif" font-size="13" fill="#5c584e">nchronize()，等所有 batch 做完。</text>
+<rect x="402.8" y="368" width="356.8" height="196" rx="8" fill="#ffffff" stroke="#d9d3c5"/>
+<text x="414.8" y="390" font-family="sans-serif" font-size="12" font-weight="700" fill="#5c584e">应用 · Android 图像导出</text>
+<text x="414.8" y="412" font-family="sans-serif" font-size="15" font-weight="700" fill="#1c1b16">9. 拷到 AHardwareBuffer，交给 BufferQueue</text>
+<text x="414.8" y="436" font-family="sans-serif" font-size="13" fill="#5c584e">vkQueueSignalReleaseImageANDROID → 按行 memcpy 到 AHB</text>
+<text x="414.8" y="454" font-family="sans-serif" font-size="13" fill="#5c584e">（memfd）。然后 queueBuffer 给 SurfaceFlinger。这一步常</text>
+<text x="414.8" y="472" font-family="sans-serif" font-size="13" fill="#5c584e">是 memcpy 热点，不是 Worker 空转。</text>
+<text x="1528.2" y="472.0" text-anchor="middle" font-family="sans-serif" font-size="18" font-weight="700" fill="#5c584e">←</text>
+<text x="1149.4" y="472.0" text-anchor="middle" font-family="sans-serif" font-size="18" font-weight="700" fill="#5c584e">←</text>
+<text x="770.6" y="472.0" text-anchor="middle" font-family="sans-serif" font-size="18" font-weight="700" fill="#5c584e">←</text>
+<text x="581.2" y="582.0" text-anchor="middle" font-family="sans-serif" font-size="18" font-weight="700" fill="#5c584e">↓</text>
+<rect x="402.8" y="588" width="356.8" height="196" rx="8" fill="#f3e8f8" stroke="#ce93d8"/>
+<text x="414.8" y="610" font-family="sans-serif" font-size="12" font-weight="700" fill="#6a1b9a">SurfaceFlinger 主线程</text>
+<text x="414.8" y="632" font-family="sans-serif" font-size="15" font-weight="700" fill="#1c1b16">10. 合成这一屏：各层排在哪</text>
+<text x="414.8" y="656" font-family="sans-serif" font-size="13" fill="#5c584e">读应用刚交来的 buffer，加上状态栏、壁纸等。能走 HWC 直</text>
+<text x="414.8" y="674" font-family="sans-serif" font-size="13" fill="#5c584e">通就少算像素；走 Client 合成就要再画一遍。</text>
+<text x="770.6" y="692.0" text-anchor="middle" font-family="sans-serif" font-size="18" font-weight="700" fill="#5c584e">→</text>
+<rect x="781.6" y="588" width="356.8" height="196" rx="8" fill="#f3e8f8" stroke="#ce93d8"/>
+<text x="793.6" y="610" font-family="sans-serif" font-size="12" font-weight="700" fill="#6a1b9a">SF 的 pastel（另一份 ICD）</text>
+<text x="793.6" y="632" font-family="sans-serif" font-size="15" font-weight="700" fill="#1c1b16">11. SF 自己的 vkQueueSubmit</text>
+<text x="793.6" y="656" font-family="sans-serif" font-size="13" fill="#5c584e">合成 shader 再走一遍 4→7，但是 SF 进程里另一套 Worker</text>
+<text x="793.6" y="674" font-family="sans-serif" font-size="13" fill="#5c584e">，ini、ThreadCount 各算各的。</text>
+<text x="1149.4" y="692.0" text-anchor="middle" font-family="sans-serif" font-size="18" font-weight="700" fill="#5c584e">→</text>
+<rect x="1160.4" y="588" width="356.8" height="196" rx="8" fill="#e3eef9" stroke="#90b4e0"/>
+<text x="1172.4" y="610" font-family="sans-serif" font-size="12" font-weight="700" fill="#1565c0">SF Worker · Thread&lt;NN&gt;</text>
+<text x="1172.4" y="632" font-family="sans-serif" font-size="15" font-weight="700" fill="#1c1b16">12. 采样各层、做片元、写出合成结果</text>
+<text x="1172.4" y="656" font-family="sans-serif" font-size="13" fill="#5c584e">秒表场景里 SF 侧 PixelRoutine + bilinear sampler 经常比</text>
+<text x="1172.4" y="674" font-family="sans-serif" font-size="13" fill="#5c584e">应用侧更热：全屏图层、逐像素采样。</text>
+<text x="1528.2" y="692.0" text-anchor="middle" font-family="sans-serif" font-size="18" font-weight="700" fill="#5c584e">→</text>
+<rect x="1539.2" y="588" width="356.8" height="196" rx="8" fill="#ffffff" stroke="#d9d3c5"/>
+<text x="1551.2" y="610" font-family="sans-serif" font-size="12" font-weight="700" fill="#5c584e">显示 / redroid</text>
+<text x="1551.2" y="632" font-family="sans-serif" font-size="15" font-weight="700" fill="#1c1b16">13. 上屏</text>
+<text x="1551.2" y="656" font-family="sans-serif" font-size="13" fill="#5c584e">合成结果进 framebuffer / 虚拟屏。scrcpy 另走一条编码，</text>
+<text x="1551.2" y="674" font-family="sans-serif" font-size="13" fill="#5c584e">不是这条 pastel Worker。</text>
 <rect x="24" y="804" width="980" height="232" rx="8" fill="#ffffff" stroke="#d9d3c5"/>
 <text x="40" y="828" font-family="sans-serif" font-size="16" font-weight="700" fill="#1c1b16">一块 batch 在 Worker 里怎么跑</text>
 <text x="40" y="852" font-family="monospace" font-size="13" fill="#1c1b16">DrawCall::run</text>
