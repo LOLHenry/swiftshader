@@ -293,9 +293,9 @@ HTML = r"""<!DOCTYPE html>
       margin-top: 4px;
     }
     .bottom {
-      flex: 0 0 368px;
+      flex: 0 0 300px;
       display: grid;
-      grid-template-columns: 1.15fr 1fr;
+      grid-template-columns: 1fr 1.25fr;
       gap: 12px;
       min-height: 0;
     }
@@ -354,18 +354,16 @@ HTML = r"""<!DOCTYPE html>
     .pool-paths .nop, .pool-row .nop { background: #fdecea; border-color: #c62828; }
     .pool-row .sleep { background: #eee; }
     .pool-row .n { font-weight: 700; }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 13px;
-    }
-    th, td {
+    .sys-pre {
+      margin: 0 0 8px;
+      padding: 5px 8px;
+      background: #f3efe4;
       border: 1px solid #d9d3c5;
-      padding: 4px 7px;
-      text-align: left;
-      vertical-align: top;
+      border-radius: 4px;
+      font: 11px/1.32 ui-monospace, "Cascadia Code", "Courier New", monospace;
+      white-space: pre;
+      color: #1c1b16;
     }
-    th { background: #f3efe4; font-weight: 650; }
     .foot {
       flex: 0 0 auto;
       font-size: 13px;
@@ -403,18 +401,17 @@ __ROWS__
     processPixels           ← PixelRoutine + sampler，写 vk::Image
 没有活：spinForWork（空转）→ wait() 睡觉
 有活被挡住：suspend，切到另一条纤程（Fiber），同一条 OS 线程继续干别的</pre>
-            <pre class="spin-loop">while (现在 − 开始 &lt; 1ms) {      ← 1ms 是空转上限，不是睡多久
-    nop × 256                     ← 空转，核约 100%，没算像素
-    有活或偷到 → return 去干活    ← 提前跳出 while
-    yield                         ← 不睡觉；把核让给别人一小下，免得空转把能派活的线程饿死
-}                                 ← 1ms 到了才离开 while
-wait() 睡觉                       ← 只有 while 因超时结束才走到这</pre>
-            <p class="spin-cap">1ms 管 while 能转多久。整池 <b>N</b> 条 Worker 同时跑，spin 只是没活时那一条路：</p>
-            <div class="pool-paths">
-              <span class="go">有活 → 干活</span>
-              <span class="fiber">挡住 → 切 Fiber</span>
-              <span class="nop">没活 → spin 1ms → wait()</span>
-            </div>
+          </div>
+          <div class="panel">
+            <h2>系统：N 条 Worker 同时跑</h2>
+            <pre class="sys-pre">marl::schedule 派活（Queue 等，不是 Worker）
+        │ 入队
+        ▼
+N 条 Worker 同时（Thread&lt;00&gt; … Thread&lt;N-1&gt;），每条三条路：
+  有活 → 干活 runUntilIdle
+  挡住 → 切纤程 Fiber，同一条 OS 线程继续干
+  没活 → spinForWork（下面）→ wait() 睡觉
+同一时刻可混着：W0 干活  W1 spin  W2 spin  W3 wait  … ×N</pre>
             <div class="pool-row">
               <span class="w go">W0 干活</span>
               <span class="w nop">W1 spin</span>
@@ -423,23 +420,14 @@ wait() 睡觉                       ← 只有 while 因超时结束才走到这
               <span>…</span>
               <span class="w n">×N 同时</span>
             </div>
-            <p class="spin-cap">旁路：marl::schedule 派活（Queue 等）。N 条一起 spin 会把核占满，所以要 yield 给派活的人和正在干活的 Worker。</p>
-          </div>
-          <div class="panel">
-            <h2>谁在干活（别把线程认错）</h2>
-            <table>
-              <thead>
-                <tr><th>名字</th><th>进程</th><th>干什么</th><th>是不是 Worker</th></tr>
-              </thead>
-              <tbody>
-                <tr><td>主线程 / UI</td><td>应用</td><td>改 View、收输入</td><td>否</td></tr>
-                <tr><td>RenderThread</td><td>应用</td><td>HWUI 录命令、submit</td><td>否</td></tr>
-                <tr><td>Queue&lt;…&gt;</td><td>应用或 SF</td><td>执行命令缓冲、synchronize</td><td>否（Queue 线程）</td></tr>
-                <tr><td>Thread&lt;NN&gt;</td><td>应用</td><td>算应用的像素</td><td><strong>是</strong></td></tr>
-                <tr><td>surfaceflinger</td><td>SF</td><td>图层决策、交合成</td><td>否</td></tr>
-                <tr><td>Thread&lt;NN&gt;</td><td>SF</td><td>算合成像素</td><td><strong>是</strong></td></tr>
-              </tbody>
-            </table>
+            <h2 style="margin-top:8px">没活时：spinForWork</h2>
+            <pre class="spin-loop">while (现在 − 开始 &lt; 1ms) {      ← 1ms 是空转上限，不是睡多久
+    nop × 256                     ← 空转，核约 100%，没算像素
+    有活或偷到 → return 去干活    ← 提前跳出 while
+    yield                         ← 不睡觉；把核让给别人一小下，免得空转把能派活的线程饿死
+}                                 ← 1ms 到了才离开 while
+wait() 睡觉                       ← 只有 while 因超时结束才走到这</pre>
+            <p class="spin-cap">N 条一起 spin 会把核占满，所以要 yield 给派活的人和正在干活的 Worker。</p>
           </div>
         </div>
         <p class="foot">应用和 SF 各加载一份 <code>vulkan.pastel.so</code>，各有一份 marl 池子。4 核上看到两套 <code>Thread&lt;00&gt;…</code> 是正常的。上屏：<code>vkQueueSignalReleaseImageANDROID</code> → AHB，不是桌面的 <code>vkQueuePresentKHR</code>。</p>
@@ -565,7 +553,7 @@ def build_svg() -> str:
         if i < 3:
             arrow_h(slot, slot + 1, ys[2], "→")
 
-    parts.append('<rect x="24" y="772" width="1000" height="268" rx="8" fill="#ffffff" stroke="#d9d3c5"/>')
+    parts.append('<rect x="24" y="790" width="820" height="246" rx="8" fill="#ffffff" stroke="#d9d3c5"/>')
     parts.append(
         '<text x="40" y="814" font-family="sans-serif" font-size="16" font-weight="700" fill="#1c1b16">一块 batch 在 Worker 里怎么跑</text>'
     )
@@ -578,58 +566,46 @@ def build_svg() -> str:
         "没有活：spinForWork（空转）→ wait() 睡觉",
         "有活被挡住：suspend，切到另一条纤程（Fiber），同一条 OS 线程继续干别的",
     ]
-    by = 834
+    by = 838
     for line in batch:
         parts.append(
             f'<text x="40" y="{by}" font-family="monospace" font-size="13" fill="#1c1b16">{escape(line)}</text>'
         )
-        by += 17
+        by += 18
 
-    parts.append('<rect x="40" y="950" width="962" height="64" rx="4" fill="#fdecea" stroke="#e0b4b4"/>')
+    parts.append('<rect x="856" y="790" width="1040" height="246" rx="8" fill="#ffffff" stroke="#d9d3c5"/>')
+    parts.append(
+        '<text x="872" y="812" font-family="sans-serif" font-size="15" font-weight="700" fill="#1c1b16">系统：N 条 Worker 同时跑</text>'
+    )
+    sys_lines = [
+        "marl::schedule 派活（Queue 等，不是 Worker）→ 入队",
+        "N 条同时（Thread<00> … <N-1>）：有活→干活  挡住→切 Fiber  没活→spin→wait()",
+        "同一时刻：W0 干活  W1 spin  W2 spin  W3 wait  … ×N",
+    ]
+    sy = 832
+    for line in sys_lines:
+        parts.append(
+            f'<text x="872" y="{sy}" font-family="monospace" font-size="12" fill="#1c1b16">{escape(line)}</text>'
+        )
+        sy += 16
+    parts.append(
+        '<text x="872" y="884" font-family="sans-serif" font-size="15" font-weight="700" fill="#1c1b16">没活时：spinForWork</text>'
+    )
+    parts.append('<rect x="872" y="892" width="1008" height="128" rx="4" fill="#fdecea" stroke="#e0b4b4"/>')
     loop = [
         "while (现在 − 开始 < 1ms) {      ← 1ms 是空转上限，不是睡多久",
         "    nop × 256                     ← 空转，核约 100%，没算像素",
         "    有活或偷到 → return 去干活    ← 提前跳出 while",
-        "    yield                         ← 不睡觉；把核让给别人一小下，免得空转把能派活的线程饿死",
-        "}  → 1ms 到了才离开 while → wait() 睡觉",
+        "    yield                         ← 不睡觉；把核让给别人一小下",
+        "}                                 ← 1ms 到了才离开 while",
+        "wait() 睡觉                       ← 只有 while 因超时结束才走到这",
     ]
-    ly = 966
+    ly = 910
     for line in loop:
         parts.append(
-            f'<text x="50" y="{ly}" font-family="monospace" font-size="11" fill="#1c1b16">{escape(line)}</text>'
+            f'<text x="884" y="{ly}" font-family="monospace" font-size="12" fill="#1c1b16">{escape(line)}</text>'
         )
-        ly += 13
-    parts.append(
-        '<text x="40" y="1028" font-family="sans-serif" font-size="11" fill="#1c1b16">整池 N 条同时：有活→干活　挡住→切 Fiber　没活→spin 1ms→wait()。示意 W0干活 W1 spin W2 spin W3 wait …×N</text>'
-    )
-    parts.append(
-        '<text x="40" y="1044" font-family="sans-serif" font-size="11" fill="#5c584e">旁路：marl::schedule 派活（Queue 等）。N 条一起 spin 会占满核，所以 yield 给派活的人和正在干活的 Worker。</text>'
-    )
-
-    parts.append('<rect x="1036" y="772" width="860" height="268" rx="8" fill="#ffffff" stroke="#d9d3c5"/>')
-    parts.append(
-        '<text x="1052" y="814" font-family="sans-serif" font-size="16" font-weight="700" fill="#1c1b16">谁在干活（别把线程认错）</text>'
-    )
-    table = [
-        ("名字", "进程", "干什么", "是不是 Worker"),
-        ("主线程 / UI", "应用", "改 View、收输入", "否"),
-        ("RenderThread", "应用", "HWUI 录命令、submit", "否"),
-        ("Queue<…>", "应用或 SF", "执行命令缓冲、synchronize", "否（Queue 线程）"),
-        ("Thread<NN>", "应用", "算应用的像素", "是"),
-        ("surfaceflinger", "SF", "图层决策、交合成", "否"),
-        ("Thread<NN>", "SF", "算合成像素", "是"),
-    ]
-    ty = 838
-    cols = [1052, 1228, 1356, 1696]
-    for ri, row in enumerate(table):
-        if ri == 0:
-            parts.append(f'<rect x="1048" y="{ty - 16}" width="832" height="22" fill="#f3efe4"/>')
-        for ci, cell in enumerate(row):
-            wt = "700" if ri == 0 or cell == "是" else "400"
-            parts.append(
-                f'<text x="{cols[ci]}" y="{ty}" font-family="sans-serif" font-size="13" font-weight="{wt}" fill="#1c1b16">{escape(cell)}</text>'
-            )
-        ty += 28
+        ly += 16
 
     parts.append(
         '<text x="24" y="1062" font-family="sans-serif" font-size="13" fill="#5c584e">应用和 SF 各加载一份 vulkan.pastel.so，各有一份 marl 池子。4 核上看到两套 Thread&lt;00&gt;… 是正常的。上屏：vkQueueSignalReleaseImageANDROID → AHB，不是桌面的 vkQueuePresentKHR。</text>'

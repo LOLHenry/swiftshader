@@ -277,19 +277,18 @@
     processPixels           ← PixelRoutine + sampler，写 vk::Image
 没有活：spinForWork（空转）→ wait() 睡觉
 有活被挡住：suspend，切到另一条纤程（Fiber），同一条 OS 线程继续干别的</pre>
-    <pre class="spin-loop">while (现在 − 开始 &lt; 1ms) {      ← 1ms 是空转上限（SpinTimeout），不是睡多久
-    nop × 256                     ← 空转，核约 100%，没算像素
-    有活或偷到 → return 去干活    ← 提前跳出 while
-    yield                         ← 不睡觉；把核让给别人一小下，免得空转把能派活的线程饿死
-}                                 ← 1ms 到了才离开 while
-wait() 睡觉                       ← 只有 while 因超时结束才走到这</pre>
-    <p class="spin-cap"><strong>1ms 的作用：</strong>管 while 能转多久。转的时候人还占着核，好马上接下一块；超时才 <code>wait()</code>，把核让出去。</p>
-    <p class="pool-cap"><strong>整池视角：</strong>不是只有这一条在 spin。池子里共 <strong>N</strong> 条 Worker（<code>Thread&lt;00&gt;…Thread&lt;N-1&gt;</code>）各跑各的，同一时刻可以混着三种路：</p>
-    <div class="pool-paths">
-      <span class="go">有活 → 干活（runUntilIdle）</span>
-      <span class="fiber">挡住 → 切纤程（Fiber）</span>
-      <span class="nop">没活 → spinForWork（1ms）→ wait() 睡觉</span>
-    </div>
+  </div>
+
+  <h2>系统：N 条 Worker 同时跑</h2>
+  <div class="card">
+    <pre class="spin-loop" style="background:#f3efe4;border-color:var(--line)">marl::schedule 派活（Queue 等，不是 Worker）
+        │ 入队
+        ▼
+N 条 Worker 同时（Thread&lt;00&gt; … Thread&lt;N-1&gt;），每条三条路：
+  有活 → 干活 runUntilIdle
+  挡住 → 切纤程 Fiber，同一条 OS 线程继续干
+  没活 → spinForWork（下面）→ wait() 睡觉
+同一时刻可混着：W0 干活  W1 spin  W2 spin  W3 wait  … ×N</pre>
     <div class="pool-row">
       <span class="w go">W0 干活</span>
       <span class="w nop">W1 spin</span>
@@ -298,7 +297,17 @@ wait() 睡觉                       ← 只有 while 因超时结束才走到这
       <span>…</span>
       <span class="w n">×N 同时</span>
     </div>
-    <p class="spin-cap">旁边还有 <code>marl::schedule</code> 派活（Queue 等，不是 Worker）。N 条一起 spin 时核容易被 nop 占满，所以循环里要 <code>yield</code>，把核让给派活的人和正在干活的 Worker。</p>
+  </div>
+
+  <h2>没活时：spinForWork</h2>
+  <div class="card">
+    <pre class="spin-loop">while (现在 − 开始 &lt; 1ms) {      ← 1ms 是空转上限（SpinTimeout），不是睡多久
+    nop × 256                     ← 空转，核约 100%，没算像素
+    有活或偷到 → return 去干活    ← 提前跳出 while
+    yield                         ← 不睡觉；把核让给别人一小下，免得空转把能派活的线程饿死
+}                                 ← 1ms 到了才离开 while
+wait() 睡觉                       ← 只有 while 因超时结束才走到这</pre>
+    <p class="spin-cap"><strong>1ms 的作用：</strong>管 while 能转多久。N 条一起 spin 会把核占满，所以要 <code>yield</code> 给派活的人和正在干活的 Worker；超时才 <code>wait()</code> 睡觉。</p>
   </div>
 
   <h2>谁在干活（别把线程认错）</h2>
