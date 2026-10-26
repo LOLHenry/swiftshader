@@ -97,27 +97,28 @@
 <text x="1551.2" y="632" font-family="sans-serif" font-size="15" font-weight="700" fill="#1c1b16">13. 上屏</text>
 <text x="1551.2" y="656" font-family="sans-serif" font-size="13" fill="#5c584e">合成结果进 framebuffer / 虚拟屏。scrcpy 另走一条编码，</text>
 <text x="1551.2" y="674" font-family="sans-serif" font-size="13" fill="#5c584e">不是这条 pastel Worker。</text>
-<rect x="24" y="790" width="820" height="246" rx="8" fill="#ffffff" stroke="#d9d3c5"/>
-<text x="40" y="814" font-family="sans-serif" font-size="16" font-weight="700" fill="#1c1b16">一块 batch 在 Worker 里怎么跑</text>
-<text x="40" y="838" font-family="monospace" font-size="13" fill="#1c1b16">DrawCall::run</text>
-<text x="40" y="856" font-family="monospace" font-size="13" fill="#1c1b16">  marl::schedule(batch)     ← 入队，哪条空闲 Worker 领走</text>
-<text x="40" y="874" font-family="monospace" font-size="13" fill="#1c1b16">    processVertices         ← VertexRoutine JIT</text>
-<text x="40" y="892" font-family="monospace" font-size="13" fill="#1c1b16">    processPrimitives       ← SetupRoutine</text>
-<text x="40" y="910" font-family="monospace" font-size="13" fill="#1c1b16">    processPixels           ← PixelRoutine + sampler，写 vk::Image</text>
-<text x="40" y="928" font-family="monospace" font-size="13" fill="#1c1b16">没有活：spinForWork（空转）→ wait() 睡觉</text>
-<text x="40" y="946" font-family="monospace" font-size="13" fill="#1c1b16">有活被挡住：suspend，切到另一条纤程（Fiber），同一条 OS 线程继续干别的</text>
-<rect x="856" y="790" width="1040" height="246" rx="8" fill="#ffffff" stroke="#d9d3c5"/>
-<text x="872" y="812" font-family="sans-serif" font-size="15" font-weight="700" fill="#1c1b16">系统：N 条 Worker 同时跑</text>
-<text x="872" y="832" font-family="monospace" font-size="12" fill="#1c1b16">marl::schedule 派活（Queue 等，不是 Worker）→ 入队</text>
-<text x="872" y="848" font-family="monospace" font-size="12" fill="#1c1b16">N 条同时（Thread&lt;00&gt; … &lt;N-1&gt;）：有活→干活  挡住→切 Fiber  没活→spin→wait()</text>
-<text x="872" y="864" font-family="monospace" font-size="12" fill="#1c1b16">同一时刻：W0 干活  W1 spin  W2 spin  W3 wait  … ×N</text>
-<text x="872" y="884" font-family="sans-serif" font-size="15" font-weight="700" fill="#1c1b16">没活时：spinForWork</text>
-<rect x="872" y="892" width="1008" height="128" rx="4" fill="#fdecea" stroke="#e0b4b4"/>
-<text x="884" y="910" font-family="monospace" font-size="12" fill="#1c1b16">while (现在 − 开始 &lt; 1ms) {      ← 1ms 是空转上限，不是睡多久</text>
-<text x="884" y="926" font-family="monospace" font-size="12" fill="#1c1b16">    nop × 256                     ← 空转，核约 100%，没算像素</text>
-<text x="884" y="942" font-family="monospace" font-size="12" fill="#1c1b16">    有活或偷到 → return 去干活    ← 提前跳出 while</text>
-<text x="884" y="958" font-family="monospace" font-size="12" fill="#1c1b16">    yield                         ← 不睡觉；把核让给别人一小下</text>
-<text x="884" y="974" font-family="monospace" font-size="12" fill="#1c1b16">}                                 ← 1ms 到了才离开 while</text>
-<text x="884" y="990" font-family="monospace" font-size="12" fill="#1c1b16">wait() 睡觉                       ← 只有 while 因超时结束才走到这</text>
+<rect x="24" y="778" width="1088" height="258" rx="8" fill="#ffffff" stroke="#d9d3c5"/>
+<text x="40" y="800" font-family="sans-serif" font-size="15" font-weight="700" fill="#1c1b16">系统：应用 Worker ×Na ＋ SF Worker ×Ns，同时跑</text>
+<text x="40" y="818" font-family="monospace" font-size="12" fill="#1c1b16">两套池（两份 vulkan.pastel.so，ThreadCount 各算各的）</text>
+<text x="40" y="833" font-family="monospace" font-size="12" fill="#1c1b16">应用 Queue ──schedule──► 应用 Worker ×Na   画应用像素</text>
+<text x="40" y="848" font-family="monospace" font-size="12" fill="#1c1b16">SF    Queue ──schedule──► SF    Worker ×Ns   画合成</text>
+<text x="40" y="863" font-family="monospace" font-size="12" fill="#1c1b16">每条：有活→干活 | 挡住→切 Fiber | 没活→spin→wait()。同一 4 核上两套 Thread&lt;00&gt;… 正常</text>
+<text x="40" y="882" font-family="sans-serif" font-size="12" fill="#1565c0">应用  W0干活 W1 spin W2 wait … ×Na</text>
+<text x="40" y="898" font-family="sans-serif" font-size="12" fill="#6a1b9a">SF    W0干活 W1 spin W2 spin … ×Ns</text>
+<text x="40" y="922" font-family="sans-serif" font-size="15" font-weight="700" fill="#1c1b16">一块 batch 在 Worker 里怎么跑</text>
+<text x="40" y="942" font-family="monospace" font-size="12" fill="#1c1b16">DrawCall::run → marl::schedule(batch) → processVertices → processPrimitives → processPixels</text>
+<text x="40" y="958" font-family="monospace" font-size="12" fill="#1c1b16">没有活：spinForWork（空转）→ wait() 睡觉</text>
+<text x="40" y="974" font-family="monospace" font-size="12" fill="#1c1b16">有活被挡住：suspend，切纤程（Fiber），同一条 OS 线程继续干别的</text>
+<rect x="1124" y="778" width="772" height="258" rx="8" fill="#ffffff" stroke="#d9d3c5"/>
+<text x="1140" y="800" font-family="sans-serif" font-size="15" font-weight="700" fill="#1c1b16">没活时：spinForWork</text>
+<rect x="1140" y="812" width="740" height="198" rx="4" fill="#fdecea" stroke="#e0b4b4"/>
+<text x="1152" y="832" font-family="monospace" font-size="12" fill="#1c1b16">while (现在 − 开始 &lt; 1ms) {</text>
+<text x="1152" y="852" font-family="monospace" font-size="12" fill="#1c1b16">    ← 1ms 是空转上限，不是睡多久</text>
+<text x="1152" y="872" font-family="monospace" font-size="12" fill="#1c1b16">    nop × 256     空转，核约 100%</text>
+<text x="1152" y="892" font-family="monospace" font-size="12" fill="#1c1b16">    有活或偷到 → return 去干活</text>
+<text x="1152" y="912" font-family="monospace" font-size="12" fill="#1c1b16">    yield         不睡觉，让核一小下</text>
+<text x="1152" y="932" font-family="monospace" font-size="12" fill="#1c1b16">}  1ms 到了才离开 while</text>
+<text x="1152" y="952" font-family="monospace" font-size="12" fill="#1c1b16">wait() 睡觉   只有超时才走到这</text>
+<text x="1152" y="972" font-family="monospace" font-size="12" fill="#1c1b16">应用池 Na、SF 池 Ns 都可以同时 spin</text>
 <text x="24" y="1062" font-family="sans-serif" font-size="13" fill="#5c584e">应用和 SF 各加载一份 vulkan.pastel.so，各有一份 marl 池子。4 核上看到两套 Thread&lt;00&gt;… 是正常的。上屏：vkQueueSignalReleaseImageANDROID → AHB，不是桌面的 vkQueuePresentKHR。</text>
 </svg>

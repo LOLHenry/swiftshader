@@ -135,9 +135,9 @@
       margin-top: 4px;
     }
     .bottom {
-      flex: 0 0 300px;
+      flex: 0 0 318px;
       display: grid;
-      grid-template-columns: 1fr 1.25fr;
+      grid-template-columns: 1.25fr 1fr;
       gap: 12px;
       min-height: 0;
     }
@@ -153,12 +153,12 @@
       margin: 0 0 6px;
       font-size: 16px;
     }
-    .batch pre {
+    .batch-pre {
       margin: 0;
       white-space: pre-wrap;
       font-family: ui-monospace, "Cascadia Code", "Courier New", monospace;
-      font-size: 13px;
-      line-height: 1.35;
+      font-size: 12px;
+      line-height: 1.32;
       color: #1c1b16;
     }
     .spin-loop {
@@ -196,6 +196,14 @@
     .pool-paths .nop, .pool-row .nop { background: #fdecea; border-color: #c62828; }
     .pool-row .sleep { background: #eee; }
     .pool-row .n { font-weight: 700; }
+    .pool-row .lab {
+      display: inline-block;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-weight: 700;
+    }
+    .pool-row .lab.app { background: #e3eef9; color: #1565c0; border: 1px solid #90b4e0; }
+    .pool-row .lab.sf { background: #f3e8f8; color: #6a1b9a; border: 1px solid #ce93d8; }
     .sys-pre {
       margin: 0 0 8px;
       padding: 5px 8px;
@@ -258,8 +266,30 @@
 <article style="grid-column:9;grid-row:5" class="step other"><div class="who">显示 / redroid</div><div class="title">13. 上屏</div><div class="detail">合成结果进 framebuffer / 虚拟屏。scrcpy 另走一条编码，不是这条 pastel Worker。</div></article>
         </div>
         <div class="bottom">
-          <div class="panel batch">
-            <h2>一块 batch 在 Worker 里怎么跑</h2>
+          <div class="panel">
+            <h2>系统：应用 Worker ×Na ＋ SF Worker ×Ns，同时跑</h2>
+            <pre class="sys-pre">两套池（两份 vulkan.pastel.so，ThreadCount 各算各的）
+应用 Queue ──schedule──► 应用 Worker ×Na   画应用像素
+SF    Queue ──schedule──► SF    Worker ×Ns   画合成
+每条三条路：有活→干活 | 挡住→切 Fiber | 没活→spin→wait()
+同一 4 核上两套 Thread&lt;00&gt;… 是正常的</pre>
+            <div class="pool-row">
+              <span class="lab app">应用</span>
+              <span class="w go">W0 干活</span>
+              <span class="w nop">W1 spin</span>
+              <span class="w sleep">W2 wait</span>
+              <span>…</span>
+              <span class="w n">×Na</span>
+            </div>
+            <div class="pool-row">
+              <span class="lab sf">SF</span>
+              <span class="w go">W0 干活</span>
+              <span class="w nop">W1 spin</span>
+              <span class="w nop">W2 spin</span>
+              <span>…</span>
+              <span class="w n">×Ns</span>
+            </div>
+            <h2 style="margin-top:8px">一块 batch 在 Worker 里怎么跑</h2>
             <pre>DrawCall::run
   marl::schedule(batch)     ← 入队，哪条空闲 Worker 领走
     processVertices         ← VertexRoutine JIT
@@ -269,31 +299,14 @@
 有活被挡住：suspend，切到另一条纤程（Fiber），同一条 OS 线程继续干别的</pre>
           </div>
           <div class="panel">
-            <h2>系统：N 条 Worker 同时跑</h2>
-            <pre class="sys-pre">marl::schedule 派活（Queue 等，不是 Worker）
-        │ 入队
-        ▼
-N 条 Worker 同时（Thread&lt;00&gt; … Thread&lt;N-1&gt;），每条三条路：
-  有活 → 干活 runUntilIdle
-  挡住 → 切纤程 Fiber，同一条 OS 线程继续干
-  没活 → spinForWork（下面）→ wait() 睡觉
-同一时刻可混着：W0 干活  W1 spin  W2 spin  W3 wait  … ×N</pre>
-            <div class="pool-row">
-              <span class="w go">W0 干活</span>
-              <span class="w nop">W1 spin</span>
-              <span class="w nop">W2 spin</span>
-              <span class="w sleep">W3 wait</span>
-              <span>…</span>
-              <span class="w n">×N 同时</span>
-            </div>
-            <h2 style="margin-top:8px">没活时：spinForWork</h2>
+            <h2>没活时：spinForWork</h2>
             <pre class="spin-loop">while (现在 − 开始 &lt; 1ms) {      ← 1ms 是空转上限，不是睡多久
     nop × 256                     ← 空转，核约 100%，没算像素
     有活或偷到 → return 去干活    ← 提前跳出 while
     yield                         ← 不睡觉；把核让给别人一小下，免得空转把能派活的线程饿死
 }                                 ← 1ms 到了才离开 while
 wait() 睡觉                       ← 只有 while 因超时结束才走到这</pre>
-            <p class="spin-cap">N 条一起 spin 会把核占满，所以要 yield 给派活的人和正在干活的 Worker。</p>
+            <p class="spin-cap">应用池 Na 条、SF 池 Ns 条都可以同时 spin。两套一起空转更容易把 4 核占满，所以要 yield 给派活的人和正在干活的 Worker。</p>
           </div>
         </div>
         <p class="foot">应用和 SF 各加载一份 <code>vulkan.pastel.so</code>，各有一份 marl 池子。4 核上看到两套 <code>Thread&lt;00&gt;…</code> 是正常的。上屏：<code>vkQueueSignalReleaseImageANDROID</code> → AHB，不是桌面的 <code>vkQueuePresentKHR</code>。</p>
