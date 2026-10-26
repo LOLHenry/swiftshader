@@ -293,7 +293,7 @@ HTML = r"""<!DOCTYPE html>
       margin-top: 4px;
     }
     .bottom {
-      flex: 0 0 288px;
+      flex: 0 0 318px;
       display: grid;
       grid-template-columns: 1.15fr 1fr;
       gap: 12px;
@@ -319,28 +319,20 @@ HTML = r"""<!DOCTYPE html>
       line-height: 1.35;
       color: #1c1b16;
     }
-    .spin-mini {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 5px;
-      margin-top: 8px;
-      font-size: 11px;
-    }
-    .spin-mini .chip {
-      display: inline-block;
-      padding: 2px 7px;
-      border-radius: 4px;
-      border: 1px solid #d9d3c5;
-      background: #f7f4ee;
-    }
-    .spin-mini .nop { background: #fdecea; border-color: #c62828; }
-    .spin-mini .go { background: #e8f0e4; border-color: #2e7d32; }
-    .spin-mini .sleep { background: #eee; }
-    .spin-cap {
+    .spin-loop {
       margin: 6px 0 0;
-      font-size: 12px;
-      line-height: 1.4;
+      padding: 5px 8px;
+      background: #fdecea;
+      border: 1px solid #e0b4b4;
+      border-radius: 4px;
+      font: 11px/1.32 ui-monospace, "Cascadia Code", "Courier New", monospace;
+      white-space: pre;
+      color: #1c1b16;
+    }
+    .spin-cap {
+      margin: 4px 0 0;
+      font-size: 11px;
+      line-height: 1.35;
       color: #5c584e;
     }
     table {
@@ -392,14 +384,13 @@ __ROWS__
     processPixels           ← PixelRoutine + sampler，写 vk::Image
 没有活：spinForWork（空转）→ wait() 睡觉
 有活被挡住：suspend，切到另一条纤程（Fiber），同一条 OS 线程继续干别的</pre>
-            <div class="spin-mini" aria-label="空转原理">
-              <span class="chip">队列空</span>→
-              <span class="chip nop">nop 空转 · 核约 100%</span>→
-              <span class="chip">看 work.num / 偷活</span>→
-              <span class="chip go">有活：马上干</span>
-              <span class="chip sleep">满 1 ms → wait() 睡觉</span>
-            </div>
-            <p class="spin-cap"><b>怎么转：</b>一串 nop 占着核，没算像素。<b>何时退出：</b>自己来活、偷到活，或满 1 ms。<b>意义：</b>下一小块马上到时，免去 OS 唤醒（往往比 1 ms 还慢）。</p>
+            <pre class="spin-loop">while (现在 − 开始 &lt; 1ms) {      ← 1ms 是空转上限，不是睡多久
+    nop × 256                     ← 空转，核约 100%，没算像素
+    有活或偷到 → return 去干活    ← 提前跳出 while
+    yield                         ← 没活，再转一轮
+}                                 ← 1ms 到了才离开 while
+wait() 睡觉                       ← 只有 while 因超时结束才走到这</pre>
+            <p class="spin-cap">1ms 管 while 能转多久。转的时候占着核，好马上接下一块；超时才 wait()，把核让出去。</p>
           </div>
           <div class="panel">
             <h2>谁在干活（别把线程认错）</h2>
@@ -561,26 +552,20 @@ def build_svg() -> str:
         )
         by += 17
 
-    def chip(x, y, w, fill, stroke, label):
+    parts.append('<rect x="40" y="952" width="962" height="78" rx="4" fill="#fdecea" stroke="#e0b4b4"/>')
+    loop = [
+        "while (现在 − 开始 < 1ms) {      ← 1ms 是空转上限，不是睡多久",
+        "    nop × 256                     ← 空转，核约 100%，没算像素",
+        "    有活或偷到 → return 去干活    ← 提前跳出 while",
+        "    yield                         ← 没活，再转一轮",
+        "}  → 1ms 到了才离开 while → wait() 睡觉",
+    ]
+    ly = 966
+    for line in loop:
         parts.append(
-            f'<rect x="{x}" y="{y}" width="{w}" height="22" rx="4" fill="{fill}" stroke="{stroke}"/>'
+            f'<text x="50" y="{ly}" font-family="monospace" font-size="11" fill="#1c1b16">{escape(line)}</text>'
         )
-        parts.append(
-            f'<text x="{x + w / 2:.1f}" y="{y + 16}" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#1c1b16">{escape(label)}</text>'
-        )
-
-    cy = 958
-    chip(40, cy, 70, "#f7f4ee", "#d9d3c5", "队列空")
-    parts.append('<text x="118" y="974" font-family="sans-serif" font-size="12" fill="#5c584e">→</text>')
-    chip(132, cy, 150, "#fdecea", "#c62828", "nop 空转 · 核约 100%")
-    parts.append('<text x="290" y="974" font-family="sans-serif" font-size="12" fill="#5c584e">→</text>')
-    chip(304, cy, 140, "#f3efe4", "#d9d3c5", "看 work.num / 偷活")
-    parts.append('<text x="452" y="974" font-family="sans-serif" font-size="12" fill="#5c584e">→</text>')
-    chip(466, cy, 110, "#e8f0e4", "#2e7d32", "有活：马上干")
-    chip(586, cy, 160, "#eeeeee", "#d9d3c5", "满 1 ms → wait() 睡觉")
-    parts.append(
-        '<text x="40" y="1004" font-family="sans-serif" font-size="12" fill="#5c584e">怎么转：一串 nop 占着核，没算像素。何时退出：自己来活、偷到活，或满 1 ms。意义：免去 OS 唤醒（往往比 1 ms 还慢）。</text>'
-    )
+        ly += 13
 
     parts.append('<rect x="1036" y="790" width="860" height="246" rx="8" fill="#ffffff" stroke="#d9d3c5"/>')
     parts.append(

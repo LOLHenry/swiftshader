@@ -109,24 +109,16 @@
     .legend .s { background: var(--sf-bg); border-color: #ce93d8; }
     footer { margin-top: 36px; font-size: 13px; color: var(--muted); }
     a { color: #0b57d0; }
-    .spin-mini {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 6px;
-      margin-top: 10px;
-      font-size: 12px;
+    .spin-loop {
+      margin: 10px 0 0;
+      padding: 8px 10px;
+      background: #fdecea;
+      border: 1px solid #e0b4b4;
+      border-radius: 6px;
+      font: 12px/1.4 ui-monospace, "Cascadia Code", "Courier New", monospace;
+      white-space: pre-wrap;
+      color: #1c1b16;
     }
-    .spin-mini span.chip {
-      display: inline-block;
-      padding: 3px 8px;
-      border-radius: 4px;
-      border: 1px solid var(--line);
-      background: #f7f4ee;
-    }
-    .spin-mini span.nop { background: #fdecea; border-color: #c62828; }
-    .spin-mini span.go { background: #e8f0e4; border-color: #2e7d32; }
-    .spin-mini span.sleep { background: #eee; }
     .spin-cap {
       margin: 8px 0 0;
       font-size: 13px;
@@ -265,14 +257,13 @@
     processPixels           ← PixelRoutine + sampler，写 vk::Image
 没有活：spinForWork（空转）→ wait() 睡觉
 有活被挡住：suspend，切到另一条纤程（Fiber），同一条 OS 线程继续干别的</pre>
-    <div class="spin-mini">
-      <span class="chip">队列空</span>→
-      <span class="chip nop">nop 空转 · 核约 100%</span>→
-      <span class="chip">看 work.num / 偷活</span>→
-      <span class="chip go">有活：马上干</span>
-      <span class="chip sleep">满 1 ms → wait() 睡觉</span>
-    </div>
-    <p class="spin-cap"><strong>怎么转：</strong>一串 nop 占着核，没算像素，隔一会儿看有没有新活。<strong>何时退出：</strong>自己来活、偷到活，或满 1 ms。<strong>意义：</strong>下一小块马上到时，免去 OS 唤醒（往往比 1 ms 还慢）。</p>
+    <pre class="spin-loop">while (现在 − 开始 &lt; 1ms) {      ← 1ms 是空转上限（SpinTimeout），不是睡多久
+    nop × 256                     ← 空转，核约 100%，没算像素
+    有活或偷到 → return 去干活    ← 提前跳出 while
+    yield                         ← 没活，再转一轮
+}                                 ← 1ms 到了才离开 while
+wait() 睡觉                       ← 只有 while 因超时结束才走到这</pre>
+    <p class="spin-cap"><strong>1ms 的作用：</strong>管 while 能转多久。转的时候人还占着核，好马上接下一块；超时才 <code>wait()</code>，把核让出去。</p>
   </div>
 
   <h2>谁在干活（别把线程认错）</h2>
