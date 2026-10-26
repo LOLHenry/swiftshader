@@ -20,7 +20,7 @@ STEPS = [
         "kind": "other",
         "who": "应用 UI 线程",
         "title": "2. 改界面、记 DisplayList",
-        "detail": "秒表改数字、invalidate。真正画图不在这条线程，交给 RenderThread。",
+        "detail": "应用改 View（文字、布局、可见性），再 invalidate。真正画图不在这条线程，交给 RenderThread。",
     },
     {
         "kind": "other",
@@ -80,7 +80,7 @@ STEPS = [
         "kind": "worker",
         "who": "SF Worker · Thread<NN>",
         "title": "12. 采样各层、做片元、写出合成结果",
-        "detail": "秒表场景里 SF 侧 PixelRoutine + bilinear sampler 经常比应用侧更热：全屏图层、逐像素采样。",
+        "detail": "Client 合成时，SF 侧 PixelRoutine + bilinear sampler 经常比应用侧更热：全屏图层、逐像素采样。",
     },
     {
         "kind": "other",
@@ -346,7 +346,7 @@ HTML = r"""<!DOCTYPE html>
         <header>
           <div>
             <h1>从应用渲染循环到上屏：Worker 在哪</h1>
-            <p class="sub">redroid guest + <code>vulkan.pastel.so</code> · 秒表 / HWUI 这一路</p>
+            <p class="sub">redroid guest + <code>vulkan.pastel.so</code> · 普通应用走 HWUI / Vulkan 这一路</p>
           </div>
           <p class="legend">
             <span class="w">蓝：应用 Worker（Thread&lt;NN&gt;）</span>
@@ -430,7 +430,7 @@ def build_svg() -> str:
         f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" width="{W}" height="{H}" role="img">',
         '<rect width="1920" height="1080" fill="#f6f4ef"/>',
         '<text x="24" y="42" font-family="sans-serif" font-size="32" font-weight="700" fill="#1c1b16">从应用渲染循环到上屏：Worker 在哪</text>',
-        '<text x="24" y="68" font-family="sans-serif" font-size="16" fill="#5c584e">redroid guest + vulkan.pastel.so · 秒表 / HWUI 这一路</text>',
+        '<text x="24" y="68" font-family="sans-serif" font-size="16" fill="#5c584e">redroid guest + vulkan.pastel.so · 普通应用走 HWUI / Vulkan 这一路</text>',
         '<rect x="1328" y="20" width="196" height="26" rx="4" fill="#e3eef9" stroke="#90b4e0"/>',
         '<text x="1426" y="38" text-anchor="middle" font-family="sans-serif" font-size="13" fill="#1c1b16">蓝：应用 Worker（Thread&lt;NN&gt;）</text>',
         '<rect x="1532" y="20" width="178" height="26" rx="4" fill="#f3e8f8" stroke="#ce93d8"/>',

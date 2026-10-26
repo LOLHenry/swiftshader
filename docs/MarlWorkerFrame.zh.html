@@ -114,7 +114,7 @@
 <body>
 <main>
   <h1>从应用渲染循环到上屏：Worker 在哪</h1>
-  <p class="muted">redroid guest + <code>vulkan.pastel.so</code> · 秒表 / HWUI 这一路</p>
+  <p class="muted">redroid guest + <code>vulkan.pastel.so</code> · 普通应用走 HWUI / Vulkan 这一路</p>
 
   <div class="card answer">
     <p class="lead">一帧里 Worker 只出现两次：<strong>应用自己的 pastel 线程池</strong>画应用的像素，<strong>SurfaceFlinger 自己的 pastel 线程池</strong>做合成。中间提交命令、排队、拷到 AHardwareBuffer、上屏，都不是 Worker 做的。</p>
@@ -144,7 +144,7 @@
     <div class="step">
       <div class="who">应用 UI 线程</div>
       <div class="title">2. 改界面、记 DisplayList</div>
-      <div class="detail">秒表改数字、invalidate。真正画图不在这条线程，交给 RenderThread。</div>
+      <div class="detail">应用改 View（文字、布局、可见性），再 invalidate。真正画图不在这条线程，交给 RenderThread。</div>
     </div>
     <div class="arrow">▼</div>
 
@@ -221,7 +221,7 @@
     <div class="step worker">
       <div class="who">SF Worker · Thread&lt;NN&gt;</div>
       <div class="title">12. 采样各层、做片元、写出合成结果</div>
-      <div class="detail">秒表场景里 SF 侧 PixelRoutine + bilinear sampler 经常比应用侧更热：全屏图层、逐像素采样。</div>
+      <div class="detail">Client 合成时，SF 侧 PixelRoutine + bilinear sampler 经常比应用侧更热：全屏图层、逐像素采样。</div>
     </div>
     <div class="arrow">▼</div>
 
