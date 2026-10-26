@@ -293,9 +293,9 @@ HTML = r"""<!DOCTYPE html>
       margin-top: 4px;
     }
     .bottom {
-      flex: 0 0 300px;
+      flex: 0 0 288px;
       display: grid;
-      grid-template-columns: 1.2fr 1fr;
+      grid-template-columns: 1.15fr 1fr;
       gap: 12px;
       min-height: 0;
     }
@@ -311,61 +311,38 @@ HTML = r"""<!DOCTYPE html>
       margin: 0 0 6px;
       font-size: 16px;
     }
-    .batch-one {
-      margin: 0 0 6px;
-      font-size: 12px;
-      color: #5c584e;
-      line-height: 1.35;
-    }
-    .spin-fig {
-      display: grid;
-      grid-template-columns: 1fr 18px 1.35fr 18px 1.2fr 18px 1.15fr;
-      grid-template-rows: 72px 22px 36px;
-      align-items: stretch;
-      margin: 0 0 6px;
-    }
-    .sbox {
-      border-radius: 6px;
-      border: 1px solid #d9d3c5;
-      padding: 4px 6px;
-      font-size: 12px;
-      line-height: 1.25;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-    }
-    .sbox b { font-size: 12px; }
-    .sbox.nop { background: #fdecea; border-color: #c62828; color: #8b1515; }
-    .sbox.chk { background: #f3efe4; }
-    .sbox.go { background: #e8f0e4; border-color: #2e7d32; color: #1b5e20; }
-    .sbox.idle { background: #f7f4ee; }
-    .sarr {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 16px;
-      font-weight: 700;
-      color: #5c584e;
-    }
-    .sloop, .ssleep {
-      grid-column: 1 / -1;
-      font-size: 12px;
-      line-height: 1.3;
-      border-radius: 4px;
-      padding: 3px 8px;
-      display: flex;
-      align-items: center;
-    }
-    .sloop { background: #fdecea; color: #8b1515; }
-    .ssleep { background: #eee; color: #5c584e; }
-    .spin-pts {
+    .batch pre {
       margin: 0;
-      padding-left: 18px;
-      font-size: 12px;
-      line-height: 1.4;
+      white-space: pre-wrap;
+      font-family: ui-monospace, "Cascadia Code", "Courier New", monospace;
+      font-size: 13px;
+      line-height: 1.35;
       color: #1c1b16;
     }
-    .spin-pts li { margin: 0 0 2px; }
+    .spin-mini {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 5px;
+      margin-top: 8px;
+      font-size: 11px;
+    }
+    .spin-mini .chip {
+      display: inline-block;
+      padding: 2px 7px;
+      border-radius: 4px;
+      border: 1px solid #d9d3c5;
+      background: #f7f4ee;
+    }
+    .spin-mini .nop { background: #fdecea; border-color: #c62828; }
+    .spin-mini .go { background: #e8f0e4; border-color: #2e7d32; }
+    .spin-mini .sleep { background: #eee; }
+    .spin-cap {
+      margin: 6px 0 0;
+      font-size: 12px;
+      line-height: 1.4;
+      color: #5c584e;
+    }
     table {
       width: 100%;
       border-collapse: collapse;
@@ -406,25 +383,23 @@ HTML = r"""<!DOCTYPE html>
 __ROWS__
         </div>
         <div class="bottom">
-          <div class="panel spin">
-            <h2>没活时：spinForWork 空转</h2>
-            <p class="batch-one">有活：DrawCall::run → marl::schedule → 顶点 → 图元 → 像素。挡住了：切纤程（Fiber），同一条 OS 线程接着干别的。</p>
-            <div class="spin-fig" aria-label="空转原理">
-              <div class="sbox idle">刚做完<br>队列空</div>
-              <div class="sarr">→</div>
-              <div class="sbox nop"><b>nop×256 空转</b><br>核约 100%，没算像素</div>
-              <div class="sarr">→</div>
-              <div class="sbox chk">看 work.num<br>或偷别人的活</div>
-              <div class="sarr">→</div>
-              <div class="sbox go"><b>有活：马上干</b><br>退出空转</div>
-              <div class="sloop">没活且未满 1 ms：yield 一下，回到 nop 继续转</div>
-              <div class="ssleep">满 1 ms 仍没活 → wait() 睡觉（核约 0%）</div>
+          <div class="panel batch">
+            <h2>一块 batch 在 Worker 里怎么跑</h2>
+            <pre>DrawCall::run
+  marl::schedule(batch)     ← 入队，哪条空闲 Worker 领走
+    processVertices         ← VertexRoutine JIT
+    processPrimitives       ← SetupRoutine
+    processPixels           ← PixelRoutine + sampler，写 vk::Image
+没有活：spinForWork（空转）→ wait() 睡觉
+有活被挡住：suspend，切到另一条纤程（Fiber），同一条 OS 线程继续干别的</pre>
+            <div class="spin-mini" aria-label="空转原理">
+              <span class="chip">队列空</span>→
+              <span class="chip nop">nop 空转 · 核约 100%</span>→
+              <span class="chip">看 work.num / 偷活</span>→
+              <span class="chip go">有活：马上干</span>
+              <span class="chip sleep">满 1 ms → wait() 睡觉</span>
             </div>
-            <ul class="spin-pts">
-              <li><b>怎么转：</b>CPU 执行空指令 nop，人还占着核，隔一会儿看有没有新活。</li>
-              <li><b>何时退出：</b>自己队列来活、从别人偷到活，或空转满 1 ms。</li>
-              <li><b>意义：</b>下一小块马上到时，免去把线程交给 OS 再唤醒（唤醒往往比 1 ms 还慢）。</li>
-            </ul>
+            <p class="spin-cap"><b>怎么转：</b>一串 nop 占着核，没算像素。<b>何时退出：</b>自己来活、偷到活，或满 1 ms。<b>意义：</b>下一小块马上到时，免去 OS 唤醒（往往比 1 ms 还慢）。</p>
           </div>
           <div class="panel">
             <h2>谁在干活（别把线程认错）</h2>
@@ -568,53 +543,44 @@ def build_svg() -> str:
 
     parts.append('<rect x="24" y="790" width="1000" height="246" rx="8" fill="#ffffff" stroke="#d9d3c5"/>')
     parts.append(
-        '<text x="40" y="814" font-family="sans-serif" font-size="16" font-weight="700" fill="#1c1b16">没活时：spinForWork 空转</text>'
+        '<text x="40" y="814" font-family="sans-serif" font-size="16" font-weight="700" fill="#1c1b16">一块 batch 在 Worker 里怎么跑</text>'
     )
-    parts.append(
-        '<text x="40" y="834" font-family="sans-serif" font-size="12" fill="#5c584e">有活：DrawCall::run → marl::schedule → 顶点 → 图元 → 像素。挡住了：切纤程（Fiber）。</text>'
-    )
-
-    def sbox(x, y, w, h, fill, stroke, lines, ty0=None):
-        parts.append(
-            f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="6" fill="{fill}" stroke="{stroke}"/>'
-        )
-        ty = y + 22 if ty0 is None else ty0
-        for line in lines:
-            parts.append(
-                f'<text x="{x + 8}" y="{ty}" font-family="sans-serif" font-size="12" fill="#1c1b16">{escape(line)}</text>'
-            )
-            ty += 16
-
-    sbox(40, 846, 130, 56, "#f7f4ee", "#d9d3c5", ["刚做完", "队列空"])
-    parts.append('<text x="184" y="878" font-family="sans-serif" font-size="16" font-weight="700" fill="#5c584e">→</text>')
-    sbox(200, 846, 200, 56, "#fdecea", "#c62828", ["nop×256 空转", "核约 100%，没算像素"])
-    parts.append('<text x="414" y="878" font-family="sans-serif" font-size="16" font-weight="700" fill="#5c584e">→</text>')
-    sbox(430, 846, 200, 56, "#f3efe4", "#d9d3c5", ["看 work.num", "或偷别人的活"])
-    parts.append('<text x="644" y="878" font-family="sans-serif" font-size="16" font-weight="700" fill="#5c584e">→</text>')
-    sbox(662, 846, 340, 56, "#e8f0e4", "#2e7d32", ["有活：马上干，退出空转"])
-    parts.append(
-        '<rect x="40" y="908" width="962" height="24" rx="4" fill="#fdecea"/>'
-    )
-    parts.append(
-        '<text x="50" y="925" font-family="sans-serif" font-size="12" fill="#8b1515">没活且未满 1 ms：yield 一下，回到 nop 继续转</text>'
-    )
-    parts.append(
-        '<rect x="40" y="936" width="962" height="24" rx="4" fill="#eeeeee"/>'
-    )
-    parts.append(
-        '<text x="50" y="953" font-family="sans-serif" font-size="12" fill="#5c584e">满 1 ms 仍没活 → wait() 睡觉（核约 0%）</text>'
-    )
-    pts = [
-        "怎么转：CPU 执行空指令 nop，人还占着核，隔一会儿看有没有新活。",
-        "何时退出：自己队列来活、从别人偷到活，或空转满 1 ms。",
-        "意义：下一小块马上到时，免去把线程交给 OS 再唤醒（唤醒往往比 1 ms 还慢）。",
+    batch = [
+        "DrawCall::run",
+        "  marl::schedule(batch)     ← 入队，哪条空闲 Worker 领走",
+        "    processVertices         ← VertexRoutine JIT",
+        "    processPrimitives       ← SetupRoutine",
+        "    processPixels           ← PixelRoutine + sampler，写 vk::Image",
+        "没有活：spinForWork（空转）→ wait() 睡觉",
+        "有活被挡住：suspend，切到另一条纤程（Fiber），同一条 OS 线程继续干别的",
     ]
-    py = 978
-    for line in pts:
+    by = 834
+    for line in batch:
         parts.append(
-            f'<text x="40" y="{py}" font-family="sans-serif" font-size="12" fill="#1c1b16">· {escape(line)}</text>'
+            f'<text x="40" y="{by}" font-family="monospace" font-size="13" fill="#1c1b16">{escape(line)}</text>'
         )
-        py += 16
+        by += 17
+
+    def chip(x, y, w, fill, stroke, label):
+        parts.append(
+            f'<rect x="{x}" y="{y}" width="{w}" height="22" rx="4" fill="{fill}" stroke="{stroke}"/>'
+        )
+        parts.append(
+            f'<text x="{x + w / 2:.1f}" y="{y + 16}" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#1c1b16">{escape(label)}</text>'
+        )
+
+    cy = 958
+    chip(40, cy, 70, "#f7f4ee", "#d9d3c5", "队列空")
+    parts.append('<text x="118" y="974" font-family="sans-serif" font-size="12" fill="#5c584e">→</text>')
+    chip(132, cy, 150, "#fdecea", "#c62828", "nop 空转 · 核约 100%")
+    parts.append('<text x="290" y="974" font-family="sans-serif" font-size="12" fill="#5c584e">→</text>')
+    chip(304, cy, 140, "#f3efe4", "#d9d3c5", "看 work.num / 偷活")
+    parts.append('<text x="452" y="974" font-family="sans-serif" font-size="12" fill="#5c584e">→</text>')
+    chip(466, cy, 110, "#e8f0e4", "#2e7d32", "有活：马上干")
+    chip(586, cy, 160, "#eeeeee", "#d9d3c5", "满 1 ms → wait() 睡觉")
+    parts.append(
+        '<text x="40" y="1004" font-family="sans-serif" font-size="12" fill="#5c584e">怎么转：一串 nop 占着核，没算像素。何时退出：自己来活、偷到活，或满 1 ms。意义：免去 OS 唤醒（往往比 1 ms 还慢）。</text>'
+    )
 
     parts.append('<rect x="1036" y="790" width="860" height="246" rx="8" fill="#ffffff" stroke="#d9d3c5"/>')
     parts.append(

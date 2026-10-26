@@ -98,29 +98,28 @@
 <text x="1551.2" y="656" font-family="sans-serif" font-size="13" fill="#5c584e">合成结果进 framebuffer / 虚拟屏。scrcpy 另走一条编码，</text>
 <text x="1551.2" y="674" font-family="sans-serif" font-size="13" fill="#5c584e">不是这条 pastel Worker。</text>
 <rect x="24" y="790" width="1000" height="246" rx="8" fill="#ffffff" stroke="#d9d3c5"/>
-<text x="40" y="814" font-family="sans-serif" font-size="16" font-weight="700" fill="#1c1b16">没活时：spinForWork 空转</text>
-<text x="40" y="834" font-family="sans-serif" font-size="12" fill="#5c584e">有活：DrawCall::run → marl::schedule → 顶点 → 图元 → 像素。挡住了：切纤程（Fiber）。</text>
-<rect x="40" y="846" width="130" height="56" rx="6" fill="#f7f4ee" stroke="#d9d3c5"/>
-<text x="48" y="868" font-family="sans-serif" font-size="12" fill="#1c1b16">刚做完</text>
-<text x="48" y="884" font-family="sans-serif" font-size="12" fill="#1c1b16">队列空</text>
-<text x="184" y="878" font-family="sans-serif" font-size="16" font-weight="700" fill="#5c584e">→</text>
-<rect x="200" y="846" width="200" height="56" rx="6" fill="#fdecea" stroke="#c62828"/>
-<text x="208" y="868" font-family="sans-serif" font-size="12" fill="#1c1b16">nop×256 空转</text>
-<text x="208" y="884" font-family="sans-serif" font-size="12" fill="#1c1b16">核约 100%，没算像素</text>
-<text x="414" y="878" font-family="sans-serif" font-size="16" font-weight="700" fill="#5c584e">→</text>
-<rect x="430" y="846" width="200" height="56" rx="6" fill="#f3efe4" stroke="#d9d3c5"/>
-<text x="438" y="868" font-family="sans-serif" font-size="12" fill="#1c1b16">看 work.num</text>
-<text x="438" y="884" font-family="sans-serif" font-size="12" fill="#1c1b16">或偷别人的活</text>
-<text x="644" y="878" font-family="sans-serif" font-size="16" font-weight="700" fill="#5c584e">→</text>
-<rect x="662" y="846" width="340" height="56" rx="6" fill="#e8f0e4" stroke="#2e7d32"/>
-<text x="670" y="868" font-family="sans-serif" font-size="12" fill="#1c1b16">有活：马上干，退出空转</text>
-<rect x="40" y="908" width="962" height="24" rx="4" fill="#fdecea"/>
-<text x="50" y="925" font-family="sans-serif" font-size="12" fill="#8b1515">没活且未满 1 ms：yield 一下，回到 nop 继续转</text>
-<rect x="40" y="936" width="962" height="24" rx="4" fill="#eeeeee"/>
-<text x="50" y="953" font-family="sans-serif" font-size="12" fill="#5c584e">满 1 ms 仍没活 → wait() 睡觉（核约 0%）</text>
-<text x="40" y="978" font-family="sans-serif" font-size="12" fill="#1c1b16">· 怎么转：CPU 执行空指令 nop，人还占着核，隔一会儿看有没有新活。</text>
-<text x="40" y="994" font-family="sans-serif" font-size="12" fill="#1c1b16">· 何时退出：自己队列来活、从别人偷到活，或空转满 1 ms。</text>
-<text x="40" y="1010" font-family="sans-serif" font-size="12" fill="#1c1b16">· 意义：下一小块马上到时，免去把线程交给 OS 再唤醒（唤醒往往比 1 ms 还慢）。</text>
+<text x="40" y="814" font-family="sans-serif" font-size="16" font-weight="700" fill="#1c1b16">一块 batch 在 Worker 里怎么跑</text>
+<text x="40" y="834" font-family="monospace" font-size="13" fill="#1c1b16">DrawCall::run</text>
+<text x="40" y="851" font-family="monospace" font-size="13" fill="#1c1b16">  marl::schedule(batch)     ← 入队，哪条空闲 Worker 领走</text>
+<text x="40" y="868" font-family="monospace" font-size="13" fill="#1c1b16">    processVertices         ← VertexRoutine JIT</text>
+<text x="40" y="885" font-family="monospace" font-size="13" fill="#1c1b16">    processPrimitives       ← SetupRoutine</text>
+<text x="40" y="902" font-family="monospace" font-size="13" fill="#1c1b16">    processPixels           ← PixelRoutine + sampler，写 vk::Image</text>
+<text x="40" y="919" font-family="monospace" font-size="13" fill="#1c1b16">没有活：spinForWork（空转）→ wait() 睡觉</text>
+<text x="40" y="936" font-family="monospace" font-size="13" fill="#1c1b16">有活被挡住：suspend，切到另一条纤程（Fiber），同一条 OS 线程继续干别的</text>
+<rect x="40" y="958" width="70" height="22" rx="4" fill="#f7f4ee" stroke="#d9d3c5"/>
+<text x="75.0" y="974" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#1c1b16">队列空</text>
+<text x="118" y="974" font-family="sans-serif" font-size="12" fill="#5c584e">→</text>
+<rect x="132" y="958" width="150" height="22" rx="4" fill="#fdecea" stroke="#c62828"/>
+<text x="207.0" y="974" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#1c1b16">nop 空转 · 核约 100%</text>
+<text x="290" y="974" font-family="sans-serif" font-size="12" fill="#5c584e">→</text>
+<rect x="304" y="958" width="140" height="22" rx="4" fill="#f3efe4" stroke="#d9d3c5"/>
+<text x="374.0" y="974" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#1c1b16">看 work.num / 偷活</text>
+<text x="452" y="974" font-family="sans-serif" font-size="12" fill="#5c584e">→</text>
+<rect x="466" y="958" width="110" height="22" rx="4" fill="#e8f0e4" stroke="#2e7d32"/>
+<text x="521.0" y="974" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#1c1b16">有活：马上干</text>
+<rect x="586" y="958" width="160" height="22" rx="4" fill="#eeeeee" stroke="#d9d3c5"/>
+<text x="666.0" y="974" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#1c1b16">满 1 ms → wait() 睡觉</text>
+<text x="40" y="1004" font-family="sans-serif" font-size="12" fill="#5c584e">怎么转：一串 nop 占着核，没算像素。何时退出：自己来活、偷到活，或满 1 ms。意义：免去 OS 唤醒（往往比 1 ms 还慢）。</text>
 <rect x="1036" y="790" width="860" height="246" rx="8" fill="#ffffff" stroke="#d9d3c5"/>
 <text x="1052" y="814" font-family="sans-serif" font-size="16" font-weight="700" fill="#1c1b16">谁在干活（别把线程认错）</text>
 <rect x="1048" y="822" width="832" height="22" fill="#f3efe4"/>
