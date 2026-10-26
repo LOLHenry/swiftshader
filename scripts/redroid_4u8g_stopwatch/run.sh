@@ -110,11 +110,21 @@ sleep 1
 	"${ADB[@]}" shell am startservice -a com.android.deskclock.action.START_STOPWATCH || true
 
 if [[ "${COLLECT_PERF}" == "1" ]]; then
+	if ! command -v perf >/dev/null 2>&1; then
+		echo "未找到 perf。openEuler：yum install -y perf OpenCSD babeltrace" >&2
+		exit 1
+	fi
+	missing="$(ldd "$(command -v perf)" 2>/dev/null | awk '/not found/ {print}' || true)"
+	if [[ -n "${missing}" ]]; then
+		echo "perf 缺共享库，先装再采。openEuler 常见：yum install -y OpenCSD babeltrace" >&2
+		echo "${missing}" >&2
+		exit 1
+	fi
 	# 宿主机上的窗口合成器进程号，不是容器内的进程号。
 	host_sf="$(ps -eo pid,args | awk '/surfaceflinger/ && !/awk/ {print $1; exit}')"
 	if [[ -n "${host_sf}" ]]; then
-		echo "在宿主机上对窗口合成器进程 ${host_sf} 采集 ${RECORD_SECONDS} 秒"
-		perf record -g -p "${host_sf}" -o "${OUT_DIR}/perf-surfaceflinger.data" -- sleep "${RECORD_SECONDS}" || true
+		echo "在宿主机上对窗口合成器进程 ${host_sf} 采集 ${RECORD_SECONDS} 秒（用户态 + fp 调用栈）"
+		perf record --call-graph fp -e cpu-clock:u -p "${host_sf}" -o "${OUT_DIR}/perf-surfaceflinger.data" -- sleep "${RECORD_SECONDS}" || true
 	else
 		echo "未在宿主机进程表里找到 surfaceflinger，跳过 perf。"
 		sleep "${RECORD_SECONDS}"
