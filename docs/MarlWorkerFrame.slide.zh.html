@@ -135,9 +135,9 @@
       margin-top: 4px;
     }
     .bottom {
-      flex: 0 0 268px;
+      flex: 0 0 300px;
       display: grid;
-      grid-template-columns: 1.15fr 1fr;
+      grid-template-columns: 1.2fr 1fr;
       gap: 12px;
       min-height: 0;
     }
@@ -145,7 +145,7 @@
       background: #fff;
       border: 1px solid #d9d3c5;
       border-radius: 8px;
-      padding: 10px 14px 8px;
+      padding: 8px 12px 8px;
       min-height: 0;
       overflow: hidden;
     }
@@ -153,14 +153,61 @@
       margin: 0 0 6px;
       font-size: 16px;
     }
-    .batch pre {
+    .batch-one {
+      margin: 0 0 6px;
+      font-size: 12px;
+      color: #5c584e;
+      line-height: 1.35;
+    }
+    .spin-fig {
+      display: grid;
+      grid-template-columns: 1fr 18px 1.35fr 18px 1.2fr 18px 1.15fr;
+      grid-template-rows: 72px 22px 36px;
+      align-items: stretch;
+      margin: 0 0 6px;
+    }
+    .sbox {
+      border-radius: 6px;
+      border: 1px solid #d9d3c5;
+      padding: 4px 6px;
+      font-size: 12px;
+      line-height: 1.25;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+    .sbox b { font-size: 12px; }
+    .sbox.nop { background: #fdecea; border-color: #c62828; color: #8b1515; }
+    .sbox.chk { background: #f3efe4; }
+    .sbox.go { background: #e8f0e4; border-color: #2e7d32; color: #1b5e20; }
+    .sbox.idle { background: #f7f4ee; }
+    .sarr {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      font-weight: 700;
+      color: #5c584e;
+    }
+    .sloop, .ssleep {
+      grid-column: 1 / -1;
+      font-size: 12px;
+      line-height: 1.3;
+      border-radius: 4px;
+      padding: 3px 8px;
+      display: flex;
+      align-items: center;
+    }
+    .sloop { background: #fdecea; color: #8b1515; }
+    .ssleep { background: #eee; color: #5c584e; }
+    .spin-pts {
       margin: 0;
-      white-space: pre-wrap;
-      font-family: ui-monospace, "Cascadia Code", "Courier New", monospace;
-      font-size: 13px;
+      padding-left: 18px;
+      font-size: 12px;
       line-height: 1.4;
       color: #1c1b16;
     }
+    .spin-pts li { margin: 0 0 2px; }
     table {
       width: 100%;
       border-collapse: collapse;
@@ -225,15 +272,25 @@
 <article style="grid-column:9;grid-row:5" class="step other"><div class="who">显示 / redroid</div><div class="title">13. 上屏</div><div class="detail">合成结果进 framebuffer / 虚拟屏。scrcpy 另走一条编码，不是这条 pastel Worker。</div></article>
         </div>
         <div class="bottom">
-          <div class="panel batch">
-            <h2>一块 batch 在 Worker 里怎么跑</h2>
-            <pre>DrawCall::run
-  marl::schedule(batch)     ← 入队，哪条空闲 Worker 领走
-    processVertices         ← VertexRoutine JIT
-    processPrimitives       ← SetupRoutine
-    processPixels           ← PixelRoutine + sampler，写 vk::Image
-没有活：spinForWork（空转）→ wait() 睡觉
-有活被挡住：suspend，切到另一条纤程（Fiber），同一条 OS 线程继续干别的</pre>
+          <div class="panel spin">
+            <h2>没活时：spinForWork 空转</h2>
+            <p class="batch-one">有活：DrawCall::run → marl::schedule → 顶点 → 图元 → 像素。挡住了：切纤程（Fiber），同一条 OS 线程接着干别的。</p>
+            <div class="spin-fig" aria-label="空转原理">
+              <div class="sbox idle">刚做完<br>队列空</div>
+              <div class="sarr">→</div>
+              <div class="sbox nop"><b>nop×256 空转</b><br>核约 100%，没算像素</div>
+              <div class="sarr">→</div>
+              <div class="sbox chk">看 work.num<br>或偷别人的活</div>
+              <div class="sarr">→</div>
+              <div class="sbox go"><b>有活：马上干</b><br>退出空转</div>
+              <div class="sloop">没活且未满 1 ms：yield 一下，回到 nop 继续转</div>
+              <div class="ssleep">满 1 ms 仍没活 → wait() 睡觉（核约 0%）</div>
+            </div>
+            <ul class="spin-pts">
+              <li><b>怎么转：</b>CPU 执行空指令 nop，人还占着核，隔一会儿看有没有新活。</li>
+              <li><b>何时退出：</b>自己队列来活、从别人偷到活，或空转满 1 ms。</li>
+              <li><b>意义：</b>下一小块马上到时，免去把线程交给 OS 再唤醒（唤醒往往比 1 ms 还慢）。</li>
+            </ul>
           </div>
           <div class="panel">
             <h2>谁在干活（别把线程认错）</h2>

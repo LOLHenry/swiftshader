@@ -239,8 +239,28 @@
     processVertices         ← VertexRoutine JIT
     processPrimitives       ← SetupRoutine
     processPixels           ← PixelRoutine + sampler，写 vk::Image
-没有活：spinForWork（空转）→ wait() 睡觉
 有活被挡住：suspend，切到另一条纤程（Fiber），同一条 OS 线程继续干别的</pre>
+  </div>
+
+  <h2>没活时：spinForWork 空转</h2>
+  <div class="card">
+    <p class="muted" style="margin:0 0 10px">CPU 执行空指令 nop，人还占着核，并没有在算像素。目的是下一小块马上到时，免去把线程交给 OS 再唤醒。</p>
+    <div style="display:flex;flex-wrap:wrap;align-items:stretch;gap:8px;margin:0 0 10px">
+      <div style="flex:1;min-width:120px;border:1px solid var(--line);border-radius:6px;padding:8px 10px;background:#f7f4ee"><strong>刚做完</strong><br>队列空</div>
+      <div style="align-self:center;color:var(--muted)">→</div>
+      <div style="flex:1.4;min-width:140px;border:1px solid #c62828;border-radius:6px;padding:8px 10px;background:#fdecea"><strong>nop×256 空转</strong><br>核约 100%，没算像素</div>
+      <div style="align-self:center;color:var(--muted)">→</div>
+      <div style="flex:1.3;min-width:140px;border:1px solid var(--line);border-radius:6px;padding:8px 10px;background:var(--note)"><strong>看 work.num</strong><br>或偷别人的活</div>
+      <div style="align-self:center;color:var(--muted)">→</div>
+      <div style="flex:1.2;min-width:130px;border:1px solid #2e7d32;border-radius:6px;padding:8px 10px;background:#e8f0e4"><strong>有活：马上干</strong><br>退出空转</div>
+    </div>
+    <p style="margin:0 0 6px;padding:6px 10px;background:#fdecea;border-radius:4px">没活且未满 1 ms：yield 一下，回到 nop 继续转</p>
+    <p style="margin:0 0 12px;padding:6px 10px;background:#eee;border-radius:4px">满 1 ms 仍没活 → <code>wait()</code> 睡觉（核约 0%）</p>
+    <ul style="margin:0;padding-left:20px">
+      <li><strong>怎么转：</strong>一串 <code>nop</code> 占着核，隔一会儿看 <code>work.num</code>，没有就尝试从别的 Worker 偷任务。</li>
+      <li><strong>何时退出：</strong>自己队列来活、偷到活，或空转满 1 ms。</li>
+      <li><strong>意义：</strong>生产者刚做完又会丢下一批小任务。若一没活就睡觉，再被 OS 叫醒往往比 1 ms 还慢，整条流水线会顿一下。</li>
+    </ul>
   </div>
 
   <h2>谁在干活（别把线程认错）</h2>

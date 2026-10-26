@@ -293,9 +293,9 @@ HTML = r"""<!DOCTYPE html>
       margin-top: 4px;
     }
     .bottom {
-      flex: 0 0 268px;
+      flex: 0 0 300px;
       display: grid;
-      grid-template-columns: 1.15fr 1fr;
+      grid-template-columns: 1.2fr 1fr;
       gap: 12px;
       min-height: 0;
     }
@@ -303,7 +303,7 @@ HTML = r"""<!DOCTYPE html>
       background: #fff;
       border: 1px solid #d9d3c5;
       border-radius: 8px;
-      padding: 10px 14px 8px;
+      padding: 8px 12px 8px;
       min-height: 0;
       overflow: hidden;
     }
@@ -311,14 +311,61 @@ HTML = r"""<!DOCTYPE html>
       margin: 0 0 6px;
       font-size: 16px;
     }
-    .batch pre {
+    .batch-one {
+      margin: 0 0 6px;
+      font-size: 12px;
+      color: #5c584e;
+      line-height: 1.35;
+    }
+    .spin-fig {
+      display: grid;
+      grid-template-columns: 1fr 18px 1.35fr 18px 1.2fr 18px 1.15fr;
+      grid-template-rows: 72px 22px 36px;
+      align-items: stretch;
+      margin: 0 0 6px;
+    }
+    .sbox {
+      border-radius: 6px;
+      border: 1px solid #d9d3c5;
+      padding: 4px 6px;
+      font-size: 12px;
+      line-height: 1.25;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+    .sbox b { font-size: 12px; }
+    .sbox.nop { background: #fdecea; border-color: #c62828; color: #8b1515; }
+    .sbox.chk { background: #f3efe4; }
+    .sbox.go { background: #e8f0e4; border-color: #2e7d32; color: #1b5e20; }
+    .sbox.idle { background: #f7f4ee; }
+    .sarr {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      font-weight: 700;
+      color: #5c584e;
+    }
+    .sloop, .ssleep {
+      grid-column: 1 / -1;
+      font-size: 12px;
+      line-height: 1.3;
+      border-radius: 4px;
+      padding: 3px 8px;
+      display: flex;
+      align-items: center;
+    }
+    .sloop { background: #fdecea; color: #8b1515; }
+    .ssleep { background: #eee; color: #5c584e; }
+    .spin-pts {
       margin: 0;
-      white-space: pre-wrap;
-      font-family: ui-monospace, "Cascadia Code", "Courier New", monospace;
-      font-size: 13px;
+      padding-left: 18px;
+      font-size: 12px;
       line-height: 1.4;
       color: #1c1b16;
     }
+    .spin-pts li { margin: 0 0 2px; }
     table {
       width: 100%;
       border-collapse: collapse;
@@ -359,15 +406,25 @@ HTML = r"""<!DOCTYPE html>
 __ROWS__
         </div>
         <div class="bottom">
-          <div class="panel batch">
-            <h2>一块 batch 在 Worker 里怎么跑</h2>
-            <pre>DrawCall::run
-  marl::schedule(batch)     ← 入队，哪条空闲 Worker 领走
-    processVertices         ← VertexRoutine JIT
-    processPrimitives       ← SetupRoutine
-    processPixels           ← PixelRoutine + sampler，写 vk::Image
-没有活：spinForWork（空转）→ wait() 睡觉
-有活被挡住：suspend，切到另一条纤程（Fiber），同一条 OS 线程继续干别的</pre>
+          <div class="panel spin">
+            <h2>没活时：spinForWork 空转</h2>
+            <p class="batch-one">有活：DrawCall::run → marl::schedule → 顶点 → 图元 → 像素。挡住了：切纤程（Fiber），同一条 OS 线程接着干别的。</p>
+            <div class="spin-fig" aria-label="空转原理">
+              <div class="sbox idle">刚做完<br>队列空</div>
+              <div class="sarr">→</div>
+              <div class="sbox nop"><b>nop×256 空转</b><br>核约 100%，没算像素</div>
+              <div class="sarr">→</div>
+              <div class="sbox chk">看 work.num<br>或偷别人的活</div>
+              <div class="sarr">→</div>
+              <div class="sbox go"><b>有活：马上干</b><br>退出空转</div>
+              <div class="sloop">没活且未满 1 ms：yield 一下，回到 nop 继续转</div>
+              <div class="ssleep">满 1 ms 仍没活 → wait() 睡觉（核约 0%）</div>
+            </div>
+            <ul class="spin-pts">
+              <li><b>怎么转：</b>CPU 执行空指令 nop，人还占着核，隔一会儿看有没有新活。</li>
+              <li><b>何时退出：</b>自己队列来活、从别人偷到活，或空转满 1 ms。</li>
+              <li><b>意义：</b>下一小块马上到时，免去把线程交给 OS 再唤醒（唤醒往往比 1 ms 还慢）。</li>
+            </ul>
           </div>
           <div class="panel">
             <h2>谁在干活（别把线程认错）</h2>
@@ -509,29 +566,59 @@ def build_svg() -> str:
         if i < 3:
             arrow_h(slot, slot + 1, ys[2], "→")
 
-    parts.append('<rect x="24" y="804" width="980" height="232" rx="8" fill="#ffffff" stroke="#d9d3c5"/>')
+    parts.append('<rect x="24" y="790" width="1000" height="246" rx="8" fill="#ffffff" stroke="#d9d3c5"/>')
     parts.append(
-        '<text x="40" y="828" font-family="sans-serif" font-size="16" font-weight="700" fill="#1c1b16">一块 batch 在 Worker 里怎么跑</text>'
+        '<text x="40" y="814" font-family="sans-serif" font-size="16" font-weight="700" fill="#1c1b16">没活时：spinForWork 空转</text>'
     )
-    batch = [
-        "DrawCall::run",
-        "  marl::schedule(batch)     ← 入队，哪条空闲 Worker 领走",
-        "    processVertices         ← VertexRoutine JIT",
-        "    processPrimitives       ← SetupRoutine",
-        "    processPixels           ← PixelRoutine + sampler，写 vk::Image",
-        "没有活：spinForWork（空转）→ wait() 睡觉",
-        "有活被挡住：suspend，切到另一条纤程（Fiber），同一条 OS 线程继续干别的",
-    ]
-    by = 852
-    for line in batch:
-        parts.append(
-            f'<text x="40" y="{by}" font-family="monospace" font-size="13" fill="#1c1b16">{escape(line)}</text>'
-        )
-        by += 18
-
-    parts.append('<rect x="1016" y="804" width="880" height="232" rx="8" fill="#ffffff" stroke="#d9d3c5"/>')
     parts.append(
-        '<text x="1032" y="828" font-family="sans-serif" font-size="16" font-weight="700" fill="#1c1b16">谁在干活（别把线程认错）</text>'
+        '<text x="40" y="834" font-family="sans-serif" font-size="12" fill="#5c584e">有活：DrawCall::run → marl::schedule → 顶点 → 图元 → 像素。挡住了：切纤程（Fiber）。</text>'
+    )
+
+    def sbox(x, y, w, h, fill, stroke, lines, ty0=None):
+        parts.append(
+            f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="6" fill="{fill}" stroke="{stroke}"/>'
+        )
+        ty = y + 22 if ty0 is None else ty0
+        for line in lines:
+            parts.append(
+                f'<text x="{x + 8}" y="{ty}" font-family="sans-serif" font-size="12" fill="#1c1b16">{escape(line)}</text>'
+            )
+            ty += 16
+
+    sbox(40, 846, 130, 56, "#f7f4ee", "#d9d3c5", ["刚做完", "队列空"])
+    parts.append('<text x="184" y="878" font-family="sans-serif" font-size="16" font-weight="700" fill="#5c584e">→</text>')
+    sbox(200, 846, 200, 56, "#fdecea", "#c62828", ["nop×256 空转", "核约 100%，没算像素"])
+    parts.append('<text x="414" y="878" font-family="sans-serif" font-size="16" font-weight="700" fill="#5c584e">→</text>')
+    sbox(430, 846, 200, 56, "#f3efe4", "#d9d3c5", ["看 work.num", "或偷别人的活"])
+    parts.append('<text x="644" y="878" font-family="sans-serif" font-size="16" font-weight="700" fill="#5c584e">→</text>')
+    sbox(662, 846, 340, 56, "#e8f0e4", "#2e7d32", ["有活：马上干，退出空转"])
+    parts.append(
+        '<rect x="40" y="908" width="962" height="24" rx="4" fill="#fdecea"/>'
+    )
+    parts.append(
+        '<text x="50" y="925" font-family="sans-serif" font-size="12" fill="#8b1515">没活且未满 1 ms：yield 一下，回到 nop 继续转</text>'
+    )
+    parts.append(
+        '<rect x="40" y="936" width="962" height="24" rx="4" fill="#eeeeee"/>'
+    )
+    parts.append(
+        '<text x="50" y="953" font-family="sans-serif" font-size="12" fill="#5c584e">满 1 ms 仍没活 → wait() 睡觉（核约 0%）</text>'
+    )
+    pts = [
+        "怎么转：CPU 执行空指令 nop，人还占着核，隔一会儿看有没有新活。",
+        "何时退出：自己队列来活、从别人偷到活，或空转满 1 ms。",
+        "意义：下一小块马上到时，免去把线程交给 OS 再唤醒（唤醒往往比 1 ms 还慢）。",
+    ]
+    py = 978
+    for line in pts:
+        parts.append(
+            f'<text x="40" y="{py}" font-family="sans-serif" font-size="12" fill="#1c1b16">· {escape(line)}</text>'
+        )
+        py += 16
+
+    parts.append('<rect x="1036" y="790" width="860" height="246" rx="8" fill="#ffffff" stroke="#d9d3c5"/>')
+    parts.append(
+        '<text x="1052" y="814" font-family="sans-serif" font-size="16" font-weight="700" fill="#1c1b16">谁在干活（别把线程认错）</text>'
     )
     table = [
         ("名字", "进程", "干什么", "是不是 Worker"),
@@ -542,11 +629,11 @@ def build_svg() -> str:
         ("surfaceflinger", "SF", "图层决策、交合成", "否"),
         ("Thread<NN>", "SF", "算合成像素", "是"),
     ]
-    ty = 848
-    cols = [1032, 1210, 1340, 1688]
+    ty = 838
+    cols = [1052, 1228, 1356, 1696]
     for ri, row in enumerate(table):
         if ri == 0:
-            parts.append(f'<rect x="1028" y="{ty - 16}" width="852" height="22" fill="#f3efe4"/>')
+            parts.append(f'<rect x="1048" y="{ty - 16}" width="832" height="22" fill="#f3efe4"/>')
         for ci, cell in enumerate(row):
             wt = "700" if ri == 0 or cell == "是" else "400"
             parts.append(
