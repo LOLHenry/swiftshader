@@ -79,15 +79,18 @@
 <text x="770.6" y="692.0" text-anchor="middle" font-family="sans-serif" font-size="18" font-weight="700" fill="#5c584e">→</text>
 <rect x="781.6" y="588" width="356.8" height="196" rx="8" fill="#f3e8f8" stroke="#ce93d8"/>
 <text x="793.6" y="610" font-family="sans-serif" font-size="12" font-weight="700" fill="#6a1b9a">SF 的 pastel（另一份 ICD）</text>
-<text x="793.6" y="632" font-family="sans-serif" font-size="15" font-weight="700" fill="#1c1b16">11. SF 自己的 vkQueueSubmit</text>
-<text x="793.6" y="656" font-family="sans-serif" font-size="13" fill="#5c584e">合成 shader 再走一遍 4→7，但是 SF 进程里另一套 Worker</text>
-<text x="793.6" y="674" font-family="sans-serif" font-size="13" fill="#5c584e">，ini、ThreadCount 各算各的。</text>
+<text x="793.6" y="632" font-family="sans-serif" font-size="15" font-weight="700" fill="#1c1b16">11. SF 自己的 vkQueueSubmit，准备 Routine</text>
+<text x="793.6" y="656" font-family="sans-serif" font-size="13" fill="#5c584e">对应应用侧的 4、5，不是 4→7。Client 合成时 SF 进程另加</text>
+<text x="793.6" y="674" font-family="sans-serif" font-size="13" fill="#5c584e">载一份 vulkan.pastel.so：Queue::submit，Renderer 找或 </text>
+<text x="793.6" y="692" font-family="sans-serif" font-size="13" fill="#5c584e">JIT 合成用的 Routine。ini、ThreadCount 各算各的。这里还</text>
+<text x="793.6" y="710" font-family="sans-serif" font-size="13" fill="#5c584e">没轮到 Worker 算像素。</text>
 <text x="1149.4" y="692.0" text-anchor="middle" font-family="sans-serif" font-size="18" font-weight="700" fill="#5c584e">→</text>
 <rect x="1160.4" y="588" width="356.8" height="196" rx="8" fill="#e3eef9" stroke="#90b4e0"/>
 <text x="1172.4" y="610" font-family="sans-serif" font-size="12" font-weight="700" fill="#1565c0">SF Worker · Thread&lt;NN&gt;</text>
 <text x="1172.4" y="632" font-family="sans-serif" font-size="15" font-weight="700" fill="#1c1b16">12. 采样各层、做片元、写出合成结果</text>
-<text x="1172.4" y="656" font-family="sans-serif" font-size="13" fill="#5c584e">Client 合成时，SF 侧 PixelRoutine + bilinear sampler 经</text>
-<text x="1172.4" y="674" font-family="sans-serif" font-size="13" fill="#5c584e">常比应用侧更热：全屏图层、逐像素采样。</text>
+<text x="1172.4" y="656" font-family="sans-serif" font-size="13" fill="#5c584e">对应应用侧的 6、7：SF 自己那套 Worker 把合成 draw 切成</text>
+<text x="1172.4" y="674" font-family="sans-serif" font-size="13" fill="#5c584e"> batch。Client 合成时这一步经常比应用侧更热：全屏图层、</text>
+<text x="1172.4" y="692" font-family="sans-serif" font-size="13" fill="#5c584e">逐像素采样。</text>
 <text x="1528.2" y="692.0" text-anchor="middle" font-family="sans-serif" font-size="18" font-weight="700" fill="#5c584e">→</text>
 <rect x="1539.2" y="588" width="356.8" height="196" rx="8" fill="#ffffff" stroke="#d9d3c5"/>
 <text x="1551.2" y="610" font-family="sans-serif" font-size="12" font-weight="700" fill="#5c584e">显示 / redroid</text>
@@ -120,34 +123,34 @@
 <text x="40" y="1010" font-family="sans-serif" font-size="12" fill="#1c1b16">· 意义：下一小块马上到时，免去把线程交给 OS 再唤醒（唤醒往往比 1 ms 还慢）。</text>
 <rect x="1036" y="790" width="860" height="246" rx="8" fill="#ffffff" stroke="#d9d3c5"/>
 <text x="1052" y="814" font-family="sans-serif" font-size="16" font-weight="700" fill="#1c1b16">谁在干活（别把线程认错）</text>
-<rect x="1028" y="832" width="852" height="22" fill="#f3efe4"/>
-<text x="1032" y="848" font-family="sans-serif" font-size="13" font-weight="700" fill="#1c1b16">名字</text>
-<text x="1210" y="848" font-family="sans-serif" font-size="13" font-weight="700" fill="#1c1b16">进程</text>
-<text x="1340" y="848" font-family="sans-serif" font-size="13" font-weight="700" fill="#1c1b16">干什么</text>
-<text x="1688" y="848" font-family="sans-serif" font-size="13" font-weight="700" fill="#1c1b16">是不是 Worker</text>
-<text x="1032" y="876" font-family="sans-serif" font-size="13" font-weight="400" fill="#1c1b16">主线程 / UI</text>
-<text x="1210" y="876" font-family="sans-serif" font-size="13" font-weight="400" fill="#1c1b16">应用</text>
-<text x="1340" y="876" font-family="sans-serif" font-size="13" font-weight="400" fill="#1c1b16">改 View、收输入</text>
-<text x="1688" y="876" font-family="sans-serif" font-size="13" font-weight="400" fill="#1c1b16">否</text>
-<text x="1032" y="904" font-family="sans-serif" font-size="13" font-weight="400" fill="#1c1b16">RenderThread</text>
-<text x="1210" y="904" font-family="sans-serif" font-size="13" font-weight="400" fill="#1c1b16">应用</text>
-<text x="1340" y="904" font-family="sans-serif" font-size="13" font-weight="400" fill="#1c1b16">HWUI 录命令、submit</text>
-<text x="1688" y="904" font-family="sans-serif" font-size="13" font-weight="400" fill="#1c1b16">否</text>
-<text x="1032" y="932" font-family="sans-serif" font-size="13" font-weight="400" fill="#1c1b16">Queue&lt;…&gt;</text>
-<text x="1210" y="932" font-family="sans-serif" font-size="13" font-weight="400" fill="#1c1b16">应用或 SF</text>
-<text x="1340" y="932" font-family="sans-serif" font-size="13" font-weight="400" fill="#1c1b16">执行命令缓冲、synchronize</text>
-<text x="1688" y="932" font-family="sans-serif" font-size="13" font-weight="400" fill="#1c1b16">否（Queue 线程）</text>
-<text x="1032" y="960" font-family="sans-serif" font-size="13" font-weight="400" fill="#1c1b16">Thread&lt;NN&gt;</text>
-<text x="1210" y="960" font-family="sans-serif" font-size="13" font-weight="400" fill="#1c1b16">应用</text>
-<text x="1340" y="960" font-family="sans-serif" font-size="13" font-weight="400" fill="#1c1b16">算应用的像素</text>
-<text x="1688" y="960" font-family="sans-serif" font-size="13" font-weight="700" fill="#1c1b16">是</text>
-<text x="1032" y="988" font-family="sans-serif" font-size="13" font-weight="400" fill="#1c1b16">surfaceflinger</text>
-<text x="1210" y="988" font-family="sans-serif" font-size="13" font-weight="400" fill="#1c1b16">SF</text>
-<text x="1340" y="988" font-family="sans-serif" font-size="13" font-weight="400" fill="#1c1b16">图层决策、交合成</text>
-<text x="1688" y="988" font-family="sans-serif" font-size="13" font-weight="400" fill="#1c1b16">否</text>
-<text x="1032" y="1016" font-family="sans-serif" font-size="13" font-weight="400" fill="#1c1b16">Thread&lt;NN&gt;</text>
-<text x="1210" y="1016" font-family="sans-serif" font-size="13" font-weight="400" fill="#1c1b16">SF</text>
-<text x="1340" y="1016" font-family="sans-serif" font-size="13" font-weight="400" fill="#1c1b16">算合成像素</text>
-<text x="1688" y="1016" font-family="sans-serif" font-size="13" font-weight="700" fill="#1c1b16">是</text>
+<rect x="1048" y="822" width="832" height="22" fill="#f3efe4"/>
+<text x="1052" y="838" font-family="sans-serif" font-size="13" font-weight="700" fill="#1c1b16">名字</text>
+<text x="1228" y="838" font-family="sans-serif" font-size="13" font-weight="700" fill="#1c1b16">进程</text>
+<text x="1356" y="838" font-family="sans-serif" font-size="13" font-weight="700" fill="#1c1b16">干什么</text>
+<text x="1696" y="838" font-family="sans-serif" font-size="13" font-weight="700" fill="#1c1b16">是不是 Worker</text>
+<text x="1052" y="866" font-family="sans-serif" font-size="13" font-weight="400" fill="#1c1b16">主线程 / UI</text>
+<text x="1228" y="866" font-family="sans-serif" font-size="13" font-weight="400" fill="#1c1b16">应用</text>
+<text x="1356" y="866" font-family="sans-serif" font-size="13" font-weight="400" fill="#1c1b16">改 View、收输入</text>
+<text x="1696" y="866" font-family="sans-serif" font-size="13" font-weight="400" fill="#1c1b16">否</text>
+<text x="1052" y="894" font-family="sans-serif" font-size="13" font-weight="400" fill="#1c1b16">RenderThread</text>
+<text x="1228" y="894" font-family="sans-serif" font-size="13" font-weight="400" fill="#1c1b16">应用</text>
+<text x="1356" y="894" font-family="sans-serif" font-size="13" font-weight="400" fill="#1c1b16">HWUI 录命令、submit</text>
+<text x="1696" y="894" font-family="sans-serif" font-size="13" font-weight="400" fill="#1c1b16">否</text>
+<text x="1052" y="922" font-family="sans-serif" font-size="13" font-weight="400" fill="#1c1b16">Queue&lt;…&gt;</text>
+<text x="1228" y="922" font-family="sans-serif" font-size="13" font-weight="400" fill="#1c1b16">应用或 SF</text>
+<text x="1356" y="922" font-family="sans-serif" font-size="13" font-weight="400" fill="#1c1b16">执行命令缓冲、synchronize</text>
+<text x="1696" y="922" font-family="sans-serif" font-size="13" font-weight="400" fill="#1c1b16">否（Queue 线程）</text>
+<text x="1052" y="950" font-family="sans-serif" font-size="13" font-weight="400" fill="#1c1b16">Thread&lt;NN&gt;</text>
+<text x="1228" y="950" font-family="sans-serif" font-size="13" font-weight="400" fill="#1c1b16">应用</text>
+<text x="1356" y="950" font-family="sans-serif" font-size="13" font-weight="400" fill="#1c1b16">算应用的像素</text>
+<text x="1696" y="950" font-family="sans-serif" font-size="13" font-weight="700" fill="#1c1b16">是</text>
+<text x="1052" y="978" font-family="sans-serif" font-size="13" font-weight="400" fill="#1c1b16">surfaceflinger</text>
+<text x="1228" y="978" font-family="sans-serif" font-size="13" font-weight="400" fill="#1c1b16">SF</text>
+<text x="1356" y="978" font-family="sans-serif" font-size="13" font-weight="400" fill="#1c1b16">图层决策、交合成</text>
+<text x="1696" y="978" font-family="sans-serif" font-size="13" font-weight="400" fill="#1c1b16">否</text>
+<text x="1052" y="1006" font-family="sans-serif" font-size="13" font-weight="400" fill="#1c1b16">Thread&lt;NN&gt;</text>
+<text x="1228" y="1006" font-family="sans-serif" font-size="13" font-weight="400" fill="#1c1b16">SF</text>
+<text x="1356" y="1006" font-family="sans-serif" font-size="13" font-weight="400" fill="#1c1b16">算合成像素</text>
+<text x="1696" y="1006" font-family="sans-serif" font-size="13" font-weight="700" fill="#1c1b16">是</text>
 <text x="24" y="1062" font-family="sans-serif" font-size="13" fill="#5c584e">应用和 SF 各加载一份 vulkan.pastel.so，各有一份 marl 池子。4 核上看到两套 Thread&lt;00&gt;… 是正常的。上屏：vkQueueSignalReleaseImageANDROID → AHB，不是桌面的 vkQueuePresentKHR。</text>
 </svg>

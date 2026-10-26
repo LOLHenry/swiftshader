@@ -265,9 +265,9 @@
 <div class="arr" style="grid-column:3;grid-row:4" aria-hidden="true">↓</div>
 <article style="grid-column:3;grid-row:5" class="step sf"><div class="who">SurfaceFlinger 主线程</div><div class="title">10. 合成这一屏：各层排在哪</div><div class="detail">读应用刚交来的 buffer，加上状态栏、壁纸等。能走 HWC 直通就少算像素；走 Client 合成就要再画一遍。</div></article>
 <div class="arr" style="grid-column:4;grid-row:5" aria-hidden="true">→</div>
-<article style="grid-column:5;grid-row:5" class="step sf"><div class="who">SF 的 pastel（另一份 ICD）</div><div class="title">11. SF 自己的 vkQueueSubmit</div><div class="detail">合成 shader 再走一遍 4→7，但是 <strong>SF 进程里另一套 Worker</strong>，ini、ThreadCount 各算各的。</div></article>
+<article style="grid-column:5;grid-row:5" class="step sf"><div class="who">SF 的 pastel（另一份 ICD）</div><div class="title">11. SF 自己的 vkQueueSubmit，准备 Routine</div><div class="detail">对应应用侧的 4、5，不是 4→7。Client 合成时 SF 进程另加载一份 <code>vulkan.pastel.so</code>：<code>Queue::submit</code>，Renderer 找或 JIT 合成用的 Routine。ini、ThreadCount 各算各的。这里还没轮到 Worker 算像素。</div></article>
 <div class="arr" style="grid-column:6;grid-row:5" aria-hidden="true">→</div>
-<article style="grid-column:7;grid-row:5" class="step worker"><div class="who">SF Worker · Thread&lt;NN&gt;</div><div class="title">12. 采样各层、做片元、写出合成结果</div><div class="detail">Client 合成时，SF 侧 PixelRoutine + bilinear sampler 经常比应用侧更热：全屏图层、逐像素采样。</div></article>
+<article style="grid-column:7;grid-row:5" class="step worker"><div class="who">SF Worker · Thread&lt;NN&gt;</div><div class="title">12. 采样各层、做片元、写出合成结果</div><div class="detail">对应应用侧的 6、7：<strong>SF 自己那套 Worker</strong> 把合成 draw 切成 batch。Client 合成时这一步经常比应用侧更热：全屏图层、逐像素采样。</div></article>
 <div class="arr" style="grid-column:8;grid-row:5" aria-hidden="true">→</div>
 <article style="grid-column:9;grid-row:5" class="step other"><div class="who">显示 / redroid</div><div class="title">13. 上屏</div><div class="detail">合成结果进 framebuffer / 虚拟屏。scrcpy 另走一条编码，不是这条 pastel Worker。</div></article>
         </div>

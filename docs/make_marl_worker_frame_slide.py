@@ -73,14 +73,14 @@ STEPS = [
     {
         "kind": "sf",
         "who": "SF 的 pastel（另一份 ICD）",
-        "title": "11. SF 自己的 vkQueueSubmit",
-        "detail": "合成 shader 再走一遍 4→7，但是 **SF 进程里另一套 Worker**，ini、ThreadCount 各算各的。",
+        "title": "11. SF 自己的 vkQueueSubmit，准备 Routine",
+        "detail": "对应应用侧的 4、5，不是 4→7。Client 合成时 SF 进程另加载一份 `vulkan.pastel.so`：`Queue::submit`，Renderer 找或 JIT 合成用的 Routine。ini、ThreadCount 各算各的。这里还没轮到 Worker 算像素。",
     },
     {
         "kind": "worker",
         "who": "SF Worker · Thread<NN>",
         "title": "12. 采样各层、做片元、写出合成结果",
-        "detail": "Client 合成时，SF 侧 PixelRoutine + bilinear sampler 经常比应用侧更热：全屏图层、逐像素采样。",
+        "detail": "对应应用侧的 6、7：**SF 自己那套 Worker** 把合成 draw 切成 batch。Client 合成时这一步经常比应用侧更热：全屏图层、逐像素采样。",
     },
     {
         "kind": "other",
