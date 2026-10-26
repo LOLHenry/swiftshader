@@ -253,7 +253,7 @@
             <pre class="spin-loop">while (现在 − 开始 &lt; 1ms) {      ← 1ms 是空转上限，不是睡多久
     nop × 256                     ← 空转，核约 100%，没算像素
     有活或偷到 → return 去干活    ← 提前跳出 while
-    yield                         ← 没活，再转一轮
+    yield                         ← 不睡觉；把核让给别人一小下，免得空转把能派活的线程饿死
 }                                 ← 1ms 到了才离开 while
 wait() 睡觉                       ← 只有 while 因超时结束才走到这</pre>
             <p class="spin-cap">1ms 管 while 能转多久。转的时候占着核，好马上接下一块；超时才 wait()，把核让出去。</p>
