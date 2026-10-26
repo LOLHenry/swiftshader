@@ -293,7 +293,7 @@ HTML = r"""<!DOCTYPE html>
       margin-top: 4px;
     }
     .bottom {
-      flex: 0 0 318px;
+      flex: 0 0 368px;
       display: grid;
       grid-template-columns: 1.15fr 1fr;
       gap: 12px;
@@ -335,6 +335,25 @@ HTML = r"""<!DOCTYPE html>
       line-height: 1.35;
       color: #5c584e;
     }
+    .pool-paths, .pool-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 4px;
+      margin-top: 4px;
+      font-size: 11px;
+    }
+    .pool-paths span, .pool-row span.w {
+      display: inline-block;
+      padding: 2px 6px;
+      border-radius: 3px;
+      border: 1px solid #d9d3c5;
+    }
+    .pool-paths .go, .pool-row .go { background: #e8f0e4; border-color: #2e7d32; }
+    .pool-paths .fiber { background: #f3efe4; }
+    .pool-paths .nop, .pool-row .nop { background: #fdecea; border-color: #c62828; }
+    .pool-row .sleep { background: #eee; }
+    .pool-row .n { font-weight: 700; }
     table {
       width: 100%;
       border-collapse: collapse;
@@ -390,7 +409,21 @@ __ROWS__
     yield                         ← 不睡觉；把核让给别人一小下，免得空转把能派活的线程饿死
 }                                 ← 1ms 到了才离开 while
 wait() 睡觉                       ← 只有 while 因超时结束才走到这</pre>
-            <p class="spin-cap">1ms 管 while 能转多久。转的时候占着核，好马上接下一块；超时才 wait()，把核让出去。</p>
+            <p class="spin-cap">1ms 管 while 能转多久。整池 <b>N</b> 条 Worker 同时跑，spin 只是没活时那一条路：</p>
+            <div class="pool-paths">
+              <span class="go">有活 → 干活</span>
+              <span class="fiber">挡住 → 切 Fiber</span>
+              <span class="nop">没活 → spin 1ms → wait()</span>
+            </div>
+            <div class="pool-row">
+              <span class="w go">W0 干活</span>
+              <span class="w nop">W1 spin</span>
+              <span class="w nop">W2 spin</span>
+              <span class="w sleep">W3 wait</span>
+              <span>…</span>
+              <span class="w n">×N 同时</span>
+            </div>
+            <p class="spin-cap">旁路：marl::schedule 派活（Queue 等）。N 条一起 spin 会把核占满，所以要 yield 给派活的人和正在干活的 Worker。</p>
           </div>
           <div class="panel">
             <h2>谁在干活（别把线程认错）</h2>
@@ -532,7 +565,7 @@ def build_svg() -> str:
         if i < 3:
             arrow_h(slot, slot + 1, ys[2], "→")
 
-    parts.append('<rect x="24" y="790" width="1000" height="246" rx="8" fill="#ffffff" stroke="#d9d3c5"/>')
+    parts.append('<rect x="24" y="772" width="1000" height="268" rx="8" fill="#ffffff" stroke="#d9d3c5"/>')
     parts.append(
         '<text x="40" y="814" font-family="sans-serif" font-size="16" font-weight="700" fill="#1c1b16">一块 batch 在 Worker 里怎么跑</text>'
     )
@@ -552,7 +585,7 @@ def build_svg() -> str:
         )
         by += 17
 
-    parts.append('<rect x="40" y="952" width="962" height="78" rx="4" fill="#fdecea" stroke="#e0b4b4"/>')
+    parts.append('<rect x="40" y="950" width="962" height="64" rx="4" fill="#fdecea" stroke="#e0b4b4"/>')
     loop = [
         "while (现在 − 开始 < 1ms) {      ← 1ms 是空转上限，不是睡多久",
         "    nop × 256                     ← 空转，核约 100%，没算像素",
@@ -566,8 +599,14 @@ def build_svg() -> str:
             f'<text x="50" y="{ly}" font-family="monospace" font-size="11" fill="#1c1b16">{escape(line)}</text>'
         )
         ly += 13
+    parts.append(
+        '<text x="40" y="1028" font-family="sans-serif" font-size="11" fill="#1c1b16">整池 N 条同时：有活→干活　挡住→切 Fiber　没活→spin 1ms→wait()。示意 W0干活 W1 spin W2 spin W3 wait …×N</text>'
+    )
+    parts.append(
+        '<text x="40" y="1044" font-family="sans-serif" font-size="11" fill="#5c584e">旁路：marl::schedule 派活（Queue 等）。N 条一起 spin 会占满核，所以 yield 给派活的人和正在干活的 Worker。</text>'
+    )
 
-    parts.append('<rect x="1036" y="790" width="860" height="246" rx="8" fill="#ffffff" stroke="#d9d3c5"/>')
+    parts.append('<rect x="1036" y="772" width="860" height="268" rx="8" fill="#ffffff" stroke="#d9d3c5"/>')
     parts.append(
         '<text x="1052" y="814" font-family="sans-serif" font-size="16" font-weight="700" fill="#1c1b16">谁在干活（别把线程认错）</text>'
     )

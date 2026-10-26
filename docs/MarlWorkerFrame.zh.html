@@ -125,6 +125,26 @@
       color: var(--muted);
       line-height: 1.45;
     }
+    .pool-cap { margin: 10px 0 6px; font-size: 13px; }
+    .pool-paths, .pool-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+      margin: 0 0 6px;
+      font-size: 12px;
+    }
+    .pool-paths span, .pool-row span.w {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 4px;
+      border: 1px solid var(--line);
+    }
+    .pool-paths .go, .pool-row .go { background: #e8f0e4; border-color: #2e7d32; }
+    .pool-paths .fiber { background: #f3efe4; }
+    .pool-paths .nop, .pool-row .nop { background: #fdecea; border-color: #c62828; }
+    .pool-row .sleep { background: #eee; }
+    .pool-row .n { font-weight: 700; }
   </style>
 </head>
 <body>
@@ -264,6 +284,21 @@
 }                                 ← 1ms 到了才离开 while
 wait() 睡觉                       ← 只有 while 因超时结束才走到这</pre>
     <p class="spin-cap"><strong>1ms 的作用：</strong>管 while 能转多久。转的时候人还占着核，好马上接下一块；超时才 <code>wait()</code>，把核让出去。</p>
+    <p class="pool-cap"><strong>整池视角：</strong>不是只有这一条在 spin。池子里共 <strong>N</strong> 条 Worker（<code>Thread&lt;00&gt;…Thread&lt;N-1&gt;</code>）各跑各的，同一时刻可以混着三种路：</p>
+    <div class="pool-paths">
+      <span class="go">有活 → 干活（runUntilIdle）</span>
+      <span class="fiber">挡住 → 切纤程（Fiber）</span>
+      <span class="nop">没活 → spinForWork（1ms）→ wait() 睡觉</span>
+    </div>
+    <div class="pool-row">
+      <span class="w go">W0 干活</span>
+      <span class="w nop">W1 spin</span>
+      <span class="w nop">W2 spin</span>
+      <span class="w sleep">W3 wait</span>
+      <span>…</span>
+      <span class="w n">×N 同时</span>
+    </div>
+    <p class="spin-cap">旁边还有 <code>marl::schedule</code> 派活（Queue 等，不是 Worker）。N 条一起 spin 时核容易被 nop 占满，所以循环里要 <code>yield</code>，把核让给派活的人和正在干活的 Worker。</p>
   </div>
 
   <h2>谁在干活（别把线程认错）</h2>

@@ -135,7 +135,7 @@
       margin-top: 4px;
     }
     .bottom {
-      flex: 0 0 318px;
+      flex: 0 0 368px;
       display: grid;
       grid-template-columns: 1.15fr 1fr;
       gap: 12px;
@@ -177,6 +177,25 @@
       line-height: 1.35;
       color: #5c584e;
     }
+    .pool-paths, .pool-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 4px;
+      margin-top: 4px;
+      font-size: 11px;
+    }
+    .pool-paths span, .pool-row span.w {
+      display: inline-block;
+      padding: 2px 6px;
+      border-radius: 3px;
+      border: 1px solid #d9d3c5;
+    }
+    .pool-paths .go, .pool-row .go { background: #e8f0e4; border-color: #2e7d32; }
+    .pool-paths .fiber { background: #f3efe4; }
+    .pool-paths .nop, .pool-row .nop { background: #fdecea; border-color: #c62828; }
+    .pool-row .sleep { background: #eee; }
+    .pool-row .n { font-weight: 700; }
     table {
       width: 100%;
       border-collapse: collapse;
@@ -256,7 +275,21 @@
     yield                         ← 不睡觉；把核让给别人一小下，免得空转把能派活的线程饿死
 }                                 ← 1ms 到了才离开 while
 wait() 睡觉                       ← 只有 while 因超时结束才走到这</pre>
-            <p class="spin-cap">1ms 管 while 能转多久。转的时候占着核，好马上接下一块；超时才 wait()，把核让出去。</p>
+            <p class="spin-cap">1ms 管 while 能转多久。整池 <b>N</b> 条 Worker 同时跑，spin 只是没活时那一条路：</p>
+            <div class="pool-paths">
+              <span class="go">有活 → 干活</span>
+              <span class="fiber">挡住 → 切 Fiber</span>
+              <span class="nop">没活 → spin 1ms → wait()</span>
+            </div>
+            <div class="pool-row">
+              <span class="w go">W0 干活</span>
+              <span class="w nop">W1 spin</span>
+              <span class="w nop">W2 spin</span>
+              <span class="w sleep">W3 wait</span>
+              <span>…</span>
+              <span class="w n">×N 同时</span>
+            </div>
+            <p class="spin-cap">旁路：marl::schedule 派活（Queue 等）。N 条一起 spin 会把核占满，所以要 yield 给派活的人和正在干活的 Worker。</p>
           </div>
           <div class="panel">
             <h2>谁在干活（别把线程认错）</h2>

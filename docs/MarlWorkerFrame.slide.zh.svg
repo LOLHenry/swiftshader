@@ -97,7 +97,7 @@
 <text x="1551.2" y="632" font-family="sans-serif" font-size="15" font-weight="700" fill="#1c1b16">13. 上屏</text>
 <text x="1551.2" y="656" font-family="sans-serif" font-size="13" fill="#5c584e">合成结果进 framebuffer / 虚拟屏。scrcpy 另走一条编码，</text>
 <text x="1551.2" y="674" font-family="sans-serif" font-size="13" fill="#5c584e">不是这条 pastel Worker。</text>
-<rect x="24" y="790" width="1000" height="246" rx="8" fill="#ffffff" stroke="#d9d3c5"/>
+<rect x="24" y="772" width="1000" height="268" rx="8" fill="#ffffff" stroke="#d9d3c5"/>
 <text x="40" y="814" font-family="sans-serif" font-size="16" font-weight="700" fill="#1c1b16">一块 batch 在 Worker 里怎么跑</text>
 <text x="40" y="834" font-family="monospace" font-size="13" fill="#1c1b16">DrawCall::run</text>
 <text x="40" y="851" font-family="monospace" font-size="13" fill="#1c1b16">  marl::schedule(batch)     ← 入队，哪条空闲 Worker 领走</text>
@@ -106,13 +106,15 @@
 <text x="40" y="902" font-family="monospace" font-size="13" fill="#1c1b16">    processPixels           ← PixelRoutine + sampler，写 vk::Image</text>
 <text x="40" y="919" font-family="monospace" font-size="13" fill="#1c1b16">没有活：spinForWork（空转）→ wait() 睡觉</text>
 <text x="40" y="936" font-family="monospace" font-size="13" fill="#1c1b16">有活被挡住：suspend，切到另一条纤程（Fiber），同一条 OS 线程继续干别的</text>
-<rect x="40" y="952" width="962" height="78" rx="4" fill="#fdecea" stroke="#e0b4b4"/>
+<rect x="40" y="950" width="962" height="64" rx="4" fill="#fdecea" stroke="#e0b4b4"/>
 <text x="50" y="966" font-family="monospace" font-size="11" fill="#1c1b16">while (现在 − 开始 &lt; 1ms) {      ← 1ms 是空转上限，不是睡多久</text>
 <text x="50" y="979" font-family="monospace" font-size="11" fill="#1c1b16">    nop × 256                     ← 空转，核约 100%，没算像素</text>
 <text x="50" y="992" font-family="monospace" font-size="11" fill="#1c1b16">    有活或偷到 → return 去干活    ← 提前跳出 while</text>
 <text x="50" y="1005" font-family="monospace" font-size="11" fill="#1c1b16">    yield                         ← 不睡觉；把核让给别人一小下，免得空转把能派活的线程饿死</text>
 <text x="50" y="1018" font-family="monospace" font-size="11" fill="#1c1b16">}  → 1ms 到了才离开 while → wait() 睡觉</text>
-<rect x="1036" y="790" width="860" height="246" rx="8" fill="#ffffff" stroke="#d9d3c5"/>
+<text x="40" y="1028" font-family="sans-serif" font-size="11" fill="#1c1b16">整池 N 条同时：有活→干活　挡住→切 Fiber　没活→spin 1ms→wait()。示意 W0干活 W1 spin W2 spin W3 wait …×N</text>
+<text x="40" y="1044" font-family="sans-serif" font-size="11" fill="#5c584e">旁路：marl::schedule 派活（Queue 等）。N 条一起 spin 会占满核，所以 yield 给派活的人和正在干活的 Worker。</text>
+<rect x="1036" y="772" width="860" height="268" rx="8" fill="#ffffff" stroke="#d9d3c5"/>
 <text x="1052" y="814" font-family="sans-serif" font-size="16" font-weight="700" fill="#1c1b16">谁在干活（别把线程认错）</text>
 <rect x="1048" y="822" width="832" height="22" fill="#f3efe4"/>
 <text x="1052" y="838" font-family="sans-serif" font-size="13" font-weight="700" fill="#1c1b16">名字</text>
