@@ -200,9 +200,9 @@
         <div class="flow">
 <article style="grid-column:1;grid-row:1" class="step other"><div class="who">显示 / Choreographer</div><div class="title">1. Vsync 到了</div><div class="detail">系统按目标帧率（如 30）发垂直同步。应用主线程被叫醒，开始这一帧。</div></article>
 <div class="arr" style="grid-column:2;grid-row:1" aria-hidden="true">→</div>
-<article style="grid-column:3;grid-row:1" class="step other"><div class="who">应用 UI 线程</div><div class="title">2. 改界面、记 DisplayList</div><div class="detail">应用改 View（文字、布局、可见性），再 invalidate。真正画图不在这条线程，交给 RenderThread。</div></article>
+<article style="grid-column:3;grid-row:1" class="step other"><div class="who">应用 UI 线程</div><div class="title">2. 改界面、记显示列表（DisplayList）</div><div class="detail">应用改 View（文字、布局、可见性），再 invalidate。UI 线程只把「这一帧画什么」记成一份操作清单，还不是像素。真正画图不在这条线程，交给 RenderThread。</div></article>
 <div class="arr" style="grid-column:4;grid-row:1" aria-hidden="true">→</div>
-<article style="grid-column:5;grid-row:1" class="step other"><div class="who">应用 RenderThread + HWUI / Skia</div><div class="title">3. 把 DisplayList 变成 Vulkan 命令</div><div class="detail">GLES 会先经 ANGLE 再进 pastel；Vulkan 直接进 pastel。这里是 <code>vkCmdDraw</code> 等，只往命令缓冲里记，几乎不算像素。</div></article>
+<article style="grid-column:5;grid-row:1" class="step other"><div class="who">应用 RenderThread + HWUI / Skia</div><div class="title">3. 把显示列表变成 Vulkan 命令</div><div class="detail">GLES 会先经 ANGLE 再进 pastel；Vulkan 直接进 pastel。这里是 <code>vkCmdDraw</code> 等，只往命令缓冲里记，几乎不算像素。</div></article>
 <div class="arr" style="grid-column:6;grid-row:1" aria-hidden="true">→</div>
 <article style="grid-column:7;grid-row:1" class="step other"><div class="who">应用 Vulkan Queue 线程（Queue&lt;…&gt;）</div><div class="title">4. <code>vkQueueSubmit</code>：命令真正开始执行</div><div class="detail"><code>Queue::submit</code> 把任务丢进内部队列；<code>taskLoop</code> 里 <code>bind()</code> 调度器后逐条执行命令缓冲。这条线程不是 Thread&lt;NN&gt;。</div></article>
 <div class="arr" style="grid-column:8;grid-row:1" aria-hidden="true">→</div>

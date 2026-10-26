@@ -20,13 +20,14 @@
 <text x="391.8" y="252.0" text-anchor="middle" font-family="sans-serif" font-size="18" font-weight="700" fill="#5c584e">→</text>
 <rect x="402.8" y="148" width="356.8" height="196" rx="8" fill="#ffffff" stroke="#d9d3c5"/>
 <text x="414.8" y="170" font-family="sans-serif" font-size="12" font-weight="700" fill="#5c584e">应用 UI 线程</text>
-<text x="414.8" y="192" font-family="sans-serif" font-size="15" font-weight="700" fill="#1c1b16">2. 改界面、记 DisplayList</text>
-<text x="414.8" y="216" font-family="sans-serif" font-size="13" fill="#5c584e">应用改 View（文字、布局、可见性），再 invalidate。真正</text>
-<text x="414.8" y="234" font-family="sans-serif" font-size="13" fill="#5c584e">画图不在这条线程，交给 RenderThread。</text>
+<text x="414.8" y="192" font-family="sans-serif" font-size="15" font-weight="700" fill="#1c1b16">2. 改界面、记显示列表（DisplayList）</text>
+<text x="414.8" y="216" font-family="sans-serif" font-size="13" fill="#5c584e">应用改 View（文字、布局、可见性），再 invalidate。UI 线</text>
+<text x="414.8" y="234" font-family="sans-serif" font-size="13" fill="#5c584e">程只把「这一帧画什么」记成一份操作清单，还不是像素。真</text>
+<text x="414.8" y="252" font-family="sans-serif" font-size="13" fill="#5c584e">正画图不在这条线程，交给 RenderThread。</text>
 <text x="770.6" y="252.0" text-anchor="middle" font-family="sans-serif" font-size="18" font-weight="700" fill="#5c584e">→</text>
 <rect x="781.6" y="148" width="356.8" height="196" rx="8" fill="#ffffff" stroke="#d9d3c5"/>
 <text x="793.6" y="170" font-family="sans-serif" font-size="12" font-weight="700" fill="#5c584e">应用 RenderThread + HWUI / Skia</text>
-<text x="793.6" y="192" font-family="sans-serif" font-size="15" font-weight="700" fill="#1c1b16">3. 把 DisplayList 变成 Vulkan 命令</text>
+<text x="793.6" y="192" font-family="sans-serif" font-size="15" font-weight="700" fill="#1c1b16">3. 把显示列表变成 Vulkan 命令</text>
 <text x="793.6" y="216" font-family="sans-serif" font-size="13" fill="#5c584e">GLES 会先经 ANGLE 再进 pastel；Vulkan 直接进 pastel。这</text>
 <text x="793.6" y="234" font-family="sans-serif" font-size="13" fill="#5c584e">里是 vkCmdDraw 等，只往命令缓冲里记，几乎不算像素。</text>
 <text x="1149.4" y="252.0" text-anchor="middle" font-family="sans-serif" font-size="18" font-weight="700" fill="#5c584e">→</text>

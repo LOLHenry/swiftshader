@@ -19,13 +19,13 @@ STEPS = [
     {
         "kind": "other",
         "who": "应用 UI 线程",
-        "title": "2. 改界面、记 DisplayList",
-        "detail": "应用改 View（文字、布局、可见性），再 invalidate。真正画图不在这条线程，交给 RenderThread。",
+        "title": "2. 改界面、记显示列表（DisplayList）",
+        "detail": "应用改 View（文字、布局、可见性），再 invalidate。UI 线程只把「这一帧画什么」记成一份操作清单，还不是像素。真正画图不在这条线程，交给 RenderThread。",
     },
     {
         "kind": "other",
         "who": "应用 RenderThread + HWUI / Skia",
-        "title": "3. 把 DisplayList 变成 Vulkan 命令",
+        "title": "3. 把显示列表变成 Vulkan 命令",
         "detail": "GLES 会先经 ANGLE 再进 pastel；Vulkan 直接进 pastel。这里是 `vkCmdDraw` 等，只往命令缓冲里记，几乎不算像素。",
     },
     {
