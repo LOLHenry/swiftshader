@@ -313,6 +313,11 @@ SF    Queue ──schedule──► SF    Worker ×Ns   画合成
 }                                 ← 1ms 到了才离开 while
 wait() 睡觉                       ← 只有 while 因超时结束才走到这</pre>
     <p class="spin-cap"><strong>1ms 的作用：</strong>管 while 能转多久。应用池 Na 条、SF 池 Ns 条都可以同时 spin，两套一起空转更容易把 4 核占满，所以要 <code>yield</code> 给派活的人和正在干活的 Worker；超时才 <code>wait()</code> 睡觉。</p>
+    <div class="card answer" style="margin:12px 0 0">
+      <p class="lead" style="margin:0 0 6px">可优化</p>
+      <p style="margin:0 0 6px"><strong>1. 调 Worker 数：</strong>应用 / SF 各写各的 <code>SwiftShader.ini</code> <code>ThreadCount</code>（看各自进程 cwd）。默认 0 → min(看见的核, 16)，4 核上常变成 16。UI 密度可应用 2 + SF 2；重渲染可应用 4、SF 1。</p>
+      <p style="margin:0"><strong>2. 调 spin 时长：</strong>while 上限现写死 1ms。改短（如 100µs）少空转；改长更容易马上接下一块，但空转更久。</p>
+    </div>
   </div>
 
   <h2>谁在干活（别把线程认错）</h2>

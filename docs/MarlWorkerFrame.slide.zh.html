@@ -135,7 +135,7 @@
       margin-top: 4px;
     }
     .bottom {
-      flex: 0 0 318px;
+      flex: 0 0 348px;
       display: grid;
       grid-template-columns: 1.25fr 1fr;
       gap: 12px;
@@ -177,6 +177,17 @@
       line-height: 1.35;
       color: #5c584e;
     }
+    .opt {
+      margin-top: 8px;
+      padding: 6px 8px;
+      background: #e8f0e4;
+      border: 1px solid #b7c9b0;
+      border-radius: 4px;
+      font-size: 11px;
+      line-height: 1.4;
+      color: #1c1b16;
+    }
+    .opt b { display: block; margin-bottom: 2px; }
     .pool-paths, .pool-row {
       display: flex;
       flex-wrap: wrap;
@@ -290,7 +301,7 @@ SF    Queue ──schedule──► SF    Worker ×Ns   画合成
               <span class="w n">×Ns</span>
             </div>
             <h2 style="margin-top:8px">一块 batch 在 Worker 里怎么跑</h2>
-            <pre>DrawCall::run
+            <pre class="batch-pre">DrawCall::run
   marl::schedule(batch)     ← 入队，哪条空闲 Worker 领走
     processVertices         ← VertexRoutine JIT
     processPrimitives       ← SetupRoutine
@@ -306,7 +317,12 @@ SF    Queue ──schedule──► SF    Worker ×Ns   画合成
     yield                         ← 不睡觉；把核让给别人一小下，免得空转把能派活的线程饿死
 }                                 ← 1ms 到了才离开 while
 wait() 睡觉                       ← 只有 while 因超时结束才走到这</pre>
-            <p class="spin-cap">应用池 Na 条、SF 池 Ns 条都可以同时 spin。两套一起空转更容易把 4 核占满，所以要 yield 给派活的人和正在干活的 Worker。</p>
+            <p class="spin-cap">应用池 Na 条、SF 池 Ns 条都可以同时 spin。两套一起空转更容易把 4 核占满，所以要 yield。</p>
+            <div class="opt">
+              <b>可优化</b>
+              1. 调 Worker 数：应用 / SF 各写各的 SwiftShader.ini <code>ThreadCount</code>（cwd）。默认 0 → min(看见的核, 16)，4 核上常变成 16。UI 密度可应用 2+SF 2；重渲染可应用 4、SF 1。<br>
+              2. 调 spin 时长：while 上限现写死 1ms。改短（如 100µs）少空转；改长更容易马上接下一块，但空转更久。
+            </div>
           </div>
         </div>
         <p class="foot">应用和 SF 各加载一份 <code>vulkan.pastel.so</code>，各有一份 marl 池子。4 核上看到两套 <code>Thread&lt;00&gt;…</code> 是正常的。上屏：<code>vkQueueSignalReleaseImageANDROID</code> → AHB，不是桌面的 <code>vkQueuePresentKHR</code>。</p>

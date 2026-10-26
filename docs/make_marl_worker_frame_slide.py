@@ -293,7 +293,7 @@ HTML = r"""<!DOCTYPE html>
       margin-top: 4px;
     }
     .bottom {
-      flex: 0 0 318px;
+      flex: 0 0 348px;
       display: grid;
       grid-template-columns: 1.25fr 1fr;
       gap: 12px;
@@ -335,6 +335,17 @@ HTML = r"""<!DOCTYPE html>
       line-height: 1.35;
       color: #5c584e;
     }
+    .opt {
+      margin-top: 8px;
+      padding: 6px 8px;
+      background: #e8f0e4;
+      border: 1px solid #b7c9b0;
+      border-radius: 4px;
+      font-size: 11px;
+      line-height: 1.4;
+      color: #1c1b16;
+    }
+    .opt b { display: block; margin-bottom: 2px; }
     .pool-paths, .pool-row {
       display: flex;
       flex-wrap: wrap;
@@ -424,7 +435,7 @@ SF    Queue ──schedule──► SF    Worker ×Ns   画合成
               <span class="w n">×Ns</span>
             </div>
             <h2 style="margin-top:8px">一块 batch 在 Worker 里怎么跑</h2>
-            <pre>DrawCall::run
+            <pre class="batch-pre">DrawCall::run
   marl::schedule(batch)     ← 入队，哪条空闲 Worker 领走
     processVertices         ← VertexRoutine JIT
     processPrimitives       ← SetupRoutine
@@ -440,7 +451,12 @@ SF    Queue ──schedule──► SF    Worker ×Ns   画合成
     yield                         ← 不睡觉；把核让给别人一小下，免得空转把能派活的线程饿死
 }                                 ← 1ms 到了才离开 while
 wait() 睡觉                       ← 只有 while 因超时结束才走到这</pre>
-            <p class="spin-cap">应用池 Na 条、SF 池 Ns 条都可以同时 spin。两套一起空转更容易把 4 核占满，所以要 yield 给派活的人和正在干活的 Worker。</p>
+            <p class="spin-cap">应用池 Na 条、SF 池 Ns 条都可以同时 spin。两套一起空转更容易把 4 核占满，所以要 yield。</p>
+            <div class="opt">
+              <b>可优化</b>
+              1. 调 Worker 数：应用 / SF 各写各的 SwiftShader.ini <code>ThreadCount</code>（cwd）。默认 0 → min(看见的核, 16)，4 核上常变成 16。UI 密度可应用 2+SF 2；重渲染可应用 4、SF 1。<br>
+              2. 调 spin 时长：while 上限现写死 1ms。改短（如 100µs）少空转；改长更容易马上接下一块，但空转更久。
+            </div>
           </div>
         </div>
         <p class="foot">应用和 SF 各加载一份 <code>vulkan.pastel.so</code>，各有一份 marl 池子。4 核上看到两套 <code>Thread&lt;00&gt;…</code> 是正常的。上屏：<code>vkQueueSignalReleaseImageANDROID</code> → AHB，不是桌面的 <code>vkQueuePresentKHR</code>。</p>
@@ -566,7 +582,7 @@ def build_svg() -> str:
         if i < 3:
             arrow_h(slot, slot + 1, ys[2], "→")
 
-    parts.append('<rect x="24" y="778" width="1088" height="258" rx="8" fill="#ffffff" stroke="#d9d3c5"/>')
+    parts.append('<rect x="24" y="768" width="1088" height="278" rx="8" fill="#ffffff" stroke="#d9d3c5"/>')
     parts.append(
         '<text x="40" y="800" font-family="sans-serif" font-size="15" font-weight="700" fill="#1c1b16">系统：应用 Worker ×Na ＋ SF Worker ×Ns，同时跑</text>'
     )
@@ -603,27 +619,37 @@ def build_svg() -> str:
         )
         by += 16
 
-    parts.append('<rect x="1124" y="778" width="772" height="258" rx="8" fill="#ffffff" stroke="#d9d3c5"/>')
+    parts.append('<rect x="1124" y="768" width="772" height="278" rx="8" fill="#ffffff" stroke="#d9d3c5"/>')
     parts.append(
         '<text x="1140" y="800" font-family="sans-serif" font-size="15" font-weight="700" fill="#1c1b16">没活时：spinForWork</text>'
     )
-    parts.append('<rect x="1140" y="812" width="740" height="198" rx="4" fill="#fdecea" stroke="#e0b4b4"/>')
+    parts.append('<rect x="1140" y="808" width="740" height="130" rx="4" fill="#fdecea" stroke="#e0b4b4"/>')
     loop = [
-        "while (现在 − 开始 < 1ms) {",
-        "    ← 1ms 是空转上限，不是睡多久",
+        "while (现在 − 开始 < 1ms) {   ← 1ms 是空转上限",
         "    nop × 256     空转，核约 100%",
         "    有活或偷到 → return 去干活",
         "    yield         不睡觉，让核一小下",
-        "}  1ms 到了才离开 while",
-        "wait() 睡觉   只有超时才走到这",
-        "应用池 Na、SF 池 Ns 都可以同时 spin",
+        "} → wait() 睡觉   只有超时才走到这",
     ]
-    ly = 832
+    ly = 826
     for line in loop:
         parts.append(
             f'<text x="1152" y="{ly}" font-family="monospace" font-size="12" fill="#1c1b16">{escape(line)}</text>'
         )
-        ly += 20
+        ly += 16
+    parts.append('<rect x="1140" y="944" width="740" height="80" rx="4" fill="#e8f0e4" stroke="#b7c9b0"/>')
+    parts.append(
+        '<text x="1152" y="964" font-family="sans-serif" font-size="13" font-weight="700" fill="#1c1b16">可优化</text>'
+    )
+    parts.append(
+        '<text x="1152" y="982" font-family="sans-serif" font-size="11" fill="#1c1b16">1. 调 Worker 数：应用 / SF 各写 ThreadCount。默认常变成 16。</text>'
+    )
+    parts.append(
+        '<text x="1152" y="998" font-family="sans-serif" font-size="11" fill="#1c1b16">   UI 密度可应用 2+SF 2；重渲染可应用 4、SF 1。</text>'
+    )
+    parts.append(
+        '<text x="1152" y="1014" font-family="sans-serif" font-size="11" fill="#1c1b16">2. 调 spin 时长：上限现 1ms。改短少空转；改长更好接活。</text>'
+    )
 
     parts.append(
         '<text x="24" y="1062" font-family="sans-serif" font-size="13" fill="#5c584e">应用和 SF 各加载一份 vulkan.pastel.so，各有一份 marl 池子。4 核上看到两套 Thread&lt;00&gt;… 是正常的。上屏：vkQueueSignalReleaseImageANDROID → AHB，不是桌面的 vkQueuePresentKHR。</text>'

@@ -97,7 +97,7 @@
 <text x="1551.2" y="632" font-family="sans-serif" font-size="15" font-weight="700" fill="#1c1b16">13. 上屏</text>
 <text x="1551.2" y="656" font-family="sans-serif" font-size="13" fill="#5c584e">合成结果进 framebuffer / 虚拟屏。scrcpy 另走一条编码，</text>
 <text x="1551.2" y="674" font-family="sans-serif" font-size="13" fill="#5c584e">不是这条 pastel Worker。</text>
-<rect x="24" y="778" width="1088" height="258" rx="8" fill="#ffffff" stroke="#d9d3c5"/>
+<rect x="24" y="768" width="1088" height="278" rx="8" fill="#ffffff" stroke="#d9d3c5"/>
 <text x="40" y="800" font-family="sans-serif" font-size="15" font-weight="700" fill="#1c1b16">系统：应用 Worker ×Na ＋ SF Worker ×Ns，同时跑</text>
 <text x="40" y="818" font-family="monospace" font-size="12" fill="#1c1b16">两套池（两份 vulkan.pastel.so，ThreadCount 各算各的）</text>
 <text x="40" y="833" font-family="monospace" font-size="12" fill="#1c1b16">应用 Queue ──schedule──► 应用 Worker ×Na   画应用像素</text>
@@ -109,16 +109,18 @@
 <text x="40" y="942" font-family="monospace" font-size="12" fill="#1c1b16">DrawCall::run → marl::schedule(batch) → processVertices → processPrimitives → processPixels</text>
 <text x="40" y="958" font-family="monospace" font-size="12" fill="#1c1b16">没有活：spinForWork（空转）→ wait() 睡觉</text>
 <text x="40" y="974" font-family="monospace" font-size="12" fill="#1c1b16">有活被挡住：suspend，切纤程（Fiber），同一条 OS 线程继续干别的</text>
-<rect x="1124" y="778" width="772" height="258" rx="8" fill="#ffffff" stroke="#d9d3c5"/>
+<rect x="1124" y="768" width="772" height="278" rx="8" fill="#ffffff" stroke="#d9d3c5"/>
 <text x="1140" y="800" font-family="sans-serif" font-size="15" font-weight="700" fill="#1c1b16">没活时：spinForWork</text>
-<rect x="1140" y="812" width="740" height="198" rx="4" fill="#fdecea" stroke="#e0b4b4"/>
-<text x="1152" y="832" font-family="monospace" font-size="12" fill="#1c1b16">while (现在 − 开始 &lt; 1ms) {</text>
-<text x="1152" y="852" font-family="monospace" font-size="12" fill="#1c1b16">    ← 1ms 是空转上限，不是睡多久</text>
-<text x="1152" y="872" font-family="monospace" font-size="12" fill="#1c1b16">    nop × 256     空转，核约 100%</text>
-<text x="1152" y="892" font-family="monospace" font-size="12" fill="#1c1b16">    有活或偷到 → return 去干活</text>
-<text x="1152" y="912" font-family="monospace" font-size="12" fill="#1c1b16">    yield         不睡觉，让核一小下</text>
-<text x="1152" y="932" font-family="monospace" font-size="12" fill="#1c1b16">}  1ms 到了才离开 while</text>
-<text x="1152" y="952" font-family="monospace" font-size="12" fill="#1c1b16">wait() 睡觉   只有超时才走到这</text>
-<text x="1152" y="972" font-family="monospace" font-size="12" fill="#1c1b16">应用池 Na、SF 池 Ns 都可以同时 spin</text>
+<rect x="1140" y="808" width="740" height="130" rx="4" fill="#fdecea" stroke="#e0b4b4"/>
+<text x="1152" y="826" font-family="monospace" font-size="12" fill="#1c1b16">while (现在 − 开始 &lt; 1ms) {   ← 1ms 是空转上限</text>
+<text x="1152" y="842" font-family="monospace" font-size="12" fill="#1c1b16">    nop × 256     空转，核约 100%</text>
+<text x="1152" y="858" font-family="monospace" font-size="12" fill="#1c1b16">    有活或偷到 → return 去干活</text>
+<text x="1152" y="874" font-family="monospace" font-size="12" fill="#1c1b16">    yield         不睡觉，让核一小下</text>
+<text x="1152" y="890" font-family="monospace" font-size="12" fill="#1c1b16">} → wait() 睡觉   只有超时才走到这</text>
+<rect x="1140" y="944" width="740" height="80" rx="4" fill="#e8f0e4" stroke="#b7c9b0"/>
+<text x="1152" y="964" font-family="sans-serif" font-size="13" font-weight="700" fill="#1c1b16">可优化</text>
+<text x="1152" y="982" font-family="sans-serif" font-size="11" fill="#1c1b16">1. 调 Worker 数：应用 / SF 各写 ThreadCount。默认常变成 16。</text>
+<text x="1152" y="998" font-family="sans-serif" font-size="11" fill="#1c1b16">   UI 密度可应用 2+SF 2；重渲染可应用 4、SF 1。</text>
+<text x="1152" y="1014" font-family="sans-serif" font-size="11" fill="#1c1b16">2. 调 spin 时长：上限现 1ms。改短少空转；改长更好接活。</text>
 <text x="24" y="1062" font-family="sans-serif" font-size="13" fill="#5c584e">应用和 SF 各加载一份 vulkan.pastel.so，各有一份 marl 池子。4 核上看到两套 Thread&lt;00&gt;… 是正常的。上屏：vkQueueSignalReleaseImageANDROID → AHB，不是桌面的 vkQueuePresentKHR。</text>
 </svg>
