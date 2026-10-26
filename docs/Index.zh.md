@@ -70,6 +70,6 @@ GLSL 编译器实现于 [src/OpenGL/compiler/](../src/OpenGL/compiler/)。它使
 其他文档
 --------
 
-面向非图形专业读者的软渲染说明（x86 优化背景、ARM / redroid 方案、术语表）见 [SoftwareRenderingOptimization.zh.md](SoftwareRenderingOptimization.zh.md)。Worker 是什么、绑核后条数谁说了算，见 [MarlWorker.zh.html](MarlWorker.zh.html)。从应用到上屏 Worker 在哪，见 [MarlWorkerFrame.zh.html](MarlWorkerFrame.zh.html)。16:9 一屏图见 [MarlWorkerFrame.slide.zh.html](MarlWorkerFrame.slide.zh.html) / [MarlWorkerFrame.slide.zh.svg](MarlWorkerFrame.slide.zh.svg)，PPT 见 [MarlWorkerFrame.pptx](MarlWorkerFrame.pptx)。
+面向非图形专业读者的软渲染说明（x86 优化背景、ARM / redroid 方案、术语表）见 [SoftwareRenderingOptimization.zh.md](SoftwareRenderingOptimization.zh.md)。Worker 是什么、绑核后条数谁说了算，见 [MarlWorker.zh.html](MarlWorker.zh.html)。从应用到上屏 Worker 在哪，见 [MarlWorkerFrame.zh.html](MarlWorkerFrame.zh.html)。同一内容的 16:9 一屏图见 [MarlWorkerFrame.slide.zh.html](MarlWorkerFrame.slide.zh.html)。
 
 在鲲鹏服务器上从零开始压渲染热点的立项方案见 [KunpengHotspotProposal.zh.md](KunpengHotspotProposal.zh.md)。WP0 基线填空表见 [WP0-baseline-template.zh.md](WP0-baseline-template.zh.md)。当前 `src/` 分层见 [src-architecture/overview.zh.md](src-architecture/overview.zh.md)。openEuler 22 要先让内核提供 Android Binder，见 [OpenEuler22Binder.zh.md](OpenEuler22Binder.zh.md)。

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>从应用到上屏：Worker 在哪（16:9）</title>
+  <title>从应用渲染循环到上屏：Worker 在哪（16:9）</title>
   <style>
     * { box-sizing: border-box; }
     html, body {
@@ -12,116 +12,278 @@
       background: #2a2824;
     }
     .fit {
-      min-height: 100%;
+      width: 100%;
+      height: 100%;
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: 12px;
     }
     .stage {
-      width: min(100vw - 24px, calc((100vh - 24px) * 16 / 9));
-      aspect-ratio: 16 / 9;
-      background: #fbf9f4;
+      position: relative;
+      width: min(100vw, calc(100vh * 16 / 9));
+      height: min(100vh, calc(100vw * 9 / 16));
+      overflow: hidden;
+      background: #f6f4ef;
+      color: #1c1b16;
+      font-family: system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+    .canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 1920px;
+      height: 1080px;
+      transform-origin: 0 0;
+      padding: 20px 24px 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 16px;
+      flex: 0 0 auto;
+    }
+    h1 {
+      margin: 0;
+      font-size: 32px;
+      line-height: 1.2;
+    }
+    .sub {
+      margin: 6px 0 0;
+      font-size: 16px;
+      color: #5c584e;
+    }
+    .sub code, .step code, .batch code, .note code {
+      font-family: ui-monospace, "Cascadia Code", "Courier New", monospace;
+      font-size: 0.92em;
+      background: #f3efe4;
+      padding: 1px 5px;
+      border-radius: 4px;
+    }
+    .legend { display: flex; gap: 8px; flex-shrink: 0; padding-top: 6px; }
+    .legend span {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 4px;
+      border: 1px solid #d9d3c5;
+      font-size: 14px;
+      background: #fff;
+    }
+    .legend .w { background: #e3eef9; border-color: #90b4e0; }
+    .legend .s { background: #f3e8f8; border-color: #ce93d8; }
+    .lead {
+      flex: 0 0 auto;
+      background: #e8f0e4;
+      border: 1px solid #b7c9b0;
       border-radius: 8px;
+      padding: 10px 16px;
+      font-size: 17px;
+      line-height: 1.45;
+      margin: 0;
+    }
+    .flow {
+      flex: 1 1 auto;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .row {
+      flex: 1 1 0;
+      min-height: 0;
+      display: flex;
+      align-items: stretch;
+    }
+    .drop {
+      flex: 0 0 18px;
+      text-align: right;
+      padding-right: 18%;
+      color: #5c584e;
+      font-size: 16px;
+      line-height: 18px;
+    }
+    .arr {
+      flex: 0 0 22px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #5c584e;
+      font-size: 16px;
+    }
+    .step {
+      flex: 1 1 0;
+      min-width: 0;
+      background: #fff;
+      border: 1px solid #d9d3c5;
+      border-radius: 8px;
+      padding: 8px 10px 8px;
+      display: flex;
+      flex-direction: column;
+    }
+    .step.worker { background: #e3eef9; border-color: #90b4e0; }
+    .step.sf { background: #f3e8f8; border-color: #ce93d8; }
+    .who {
+      font-size: 12px;
+      font-weight: 700;
+      color: #5c584e;
+      line-height: 1.3;
+    }
+    .step.worker .who { color: #1565c0; }
+    .step.sf .who { color: #6a1b9a; }
+    .title {
+      font-size: 15px;
+      font-weight: 650;
+      line-height: 1.3;
+      margin-top: 3px;
+    }
+    .detail {
+      font-size: 13px;
+      color: #5c584e;
+      line-height: 1.35;
+      margin-top: 4px;
+    }
+    .bottom {
+      flex: 0 0 268px;
+      display: grid;
+      grid-template-columns: 1.15fr 1fr;
+      gap: 12px;
+      min-height: 0;
+    }
+    .panel {
+      background: #fff;
+      border: 1px solid #d9d3c5;
+      border-radius: 8px;
+      padding: 10px 14px 8px;
+      min-height: 0;
       overflow: hidden;
     }
-    .stage svg {
-      display: block;
+    .panel h2 {
+      margin: 0 0 6px;
+      font-size: 16px;
+    }
+    .batch pre {
+      margin: 0;
+      white-space: pre-wrap;
+      font-family: ui-monospace, "Cascadia Code", "Courier New", monospace;
+      font-size: 13px;
+      line-height: 1.4;
+      color: #1c1b16;
+    }
+    table {
       width: 100%;
-      height: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    th, td {
+      border: 1px solid #d9d3c5;
+      padding: 4px 7px;
+      text-align: left;
+      vertical-align: top;
+    }
+    th { background: #f3efe4; font-weight: 650; }
+    .foot {
+      flex: 0 0 auto;
+      font-size: 13px;
+      color: #5c584e;
+      line-height: 1.4;
     }
   </style>
 </head>
 <body>
   <div class="fit">
-    <section class="stage" aria-label="16比9流程图：从应用到上屏">
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" width="1600" height="900" role="img" aria-labelledby="title desc">
-<title id="title">从应用渲染循环到上屏：Worker 在哪</title>
-<desc id="desc">一帧里 Worker 只出现两次：应用 pastel 线程池画像素，SurfaceFlinger pastel 线程池做合成。中间提交、拷 AHB、上屏都不是 Worker。</desc>
-<rect width="1600" height="900" fill="#fbf9f4"/>
-<text x="32.0" y="44.0" text-anchor="start" font-family="sans-serif" font-size="32" font-weight="700" fill="#1c1b16">从应用渲染循环到上屏：Worker 在哪</text>
-<text x="32.0" y="72.0" text-anchor="start" font-family="sans-serif" font-size="15" font-weight="400" fill="#5c584e">redroid guest · vulkan.pastel.so · 一帧里 Worker 只出现两次（应用池 + SurfaceFlinger 池）</text>
-<rect x="1078.0" y="28.0" width="148.0" height="28.0" rx="14" fill="#d6e8f8" stroke="#1565c0" stroke-width="1.2"/>
-<text x="1152.0" y="47.0" text-anchor="middle" font-family="sans-serif" font-size="13" font-weight="700" fill="#1565c0">蓝：应用 Worker</text>
-<rect x="1236.0" y="28.0" width="148.0" height="28.0" rx="14" fill="#f0e4f6" stroke="#6a1b9a" stroke-width="1.2"/>
-<text x="1310.0" y="47.0" text-anchor="middle" font-family="sans-serif" font-size="13" font-weight="700" fill="#6a1b9a">紫：SF Worker</text>
-<rect x="1394.0" y="28.0" width="142.0" height="28.0" rx="14" fill="#f7f4ee" stroke="#c8c1b0" stroke-width="1.2"/>
-<text x="1465.0" y="47.0" text-anchor="middle" font-family="sans-serif" font-size="13" font-weight="700" fill="#5c584e">灰：其他线程</text>
-<rect x="32.0" y="96.0" width="284.8" height="108.0" rx="10" fill="#f7f4ee" stroke="#c8c1b0" stroke-width="1.6"/>
-<text x="48.0" y="124.0" text-anchor="start" font-family="sans-serif" font-size="13" font-weight="700" fill="#5c584e">显示</text>
-<text x="48.0" y="154.0" text-anchor="start" font-family="sans-serif" font-size="17" font-weight="700" fill="#1c1b16">1. Vsync 到了</text>
-<polygon points="319.8,143.0 341.8,150.0 319.8,157.0" fill="#9a9486"/>
-<rect x="344.8" y="96.0" width="284.8" height="108.0" rx="10" fill="#f7f4ee" stroke="#c8c1b0" stroke-width="1.6"/>
-<text x="360.8" y="124.0" text-anchor="start" font-family="sans-serif" font-size="13" font-weight="700" fill="#5c584e">应用 UI 线程</text>
-<text x="360.8" y="154.0" text-anchor="start" font-family="sans-serif" font-size="17" font-weight="700" fill="#1c1b16">2. 改界面、记 DisplayList</text>
-<polygon points="632.6,143.0 654.6,150.0 632.6,157.0" fill="#9a9486"/>
-<rect x="657.6" y="96.0" width="284.8" height="108.0" rx="10" fill="#f7f4ee" stroke="#c8c1b0" stroke-width="1.6"/>
-<text x="673.6" y="124.0" text-anchor="start" font-family="sans-serif" font-size="13" font-weight="700" fill="#5c584e">RenderThread / HWUI</text>
-<text x="673.6" y="154.0" text-anchor="start" font-family="sans-serif" font-size="17" font-weight="700" fill="#1c1b16">3. 变成 Vulkan 命令</text>
-<polygon points="945.4,143.0 967.4,150.0 945.4,157.0" fill="#9a9486"/>
-<rect x="970.4" y="96.0" width="284.8" height="108.0" rx="10" fill="#f7f4ee" stroke="#c8c1b0" stroke-width="1.6"/>
-<text x="986.4" y="124.0" text-anchor="start" font-family="sans-serif" font-size="13" font-weight="700" fill="#5c584e">Queue 线程</text>
-<text x="986.4" y="154.0" text-anchor="start" font-family="sans-serif" font-size="17" font-weight="700" fill="#1c1b16">4. vkQueueSubmit</text>
-<polygon points="1258.2,143.0 1280.2,150.0 1258.2,157.0" fill="#9a9486"/>
-<rect x="1283.2" y="96.0" width="284.8" height="108.0" rx="10" fill="#f7f4ee" stroke="#c8c1b0" stroke-width="1.6"/>
-<text x="1299.2" y="124.0" text-anchor="start" font-family="sans-serif" font-size="13" font-weight="700" fill="#5c584e">Renderer</text>
-<text x="1299.2" y="154.0" text-anchor="start" font-family="sans-serif" font-size="17" font-weight="700" fill="#1c1b16">5. 准备 / JIT Routine</text>
-<polygon points="1418.6,210.0 1432.6,210.0 1425.6,228.0" fill="#9a9486"/>
-<text x="32.0" y="242.0" text-anchor="start" font-family="sans-serif" font-size="15" font-weight="700" fill="#1565c0">应用进程 · vulkan.pastel.so</text>
-<rect x="32.0" y="254.0" width="363.0" height="108.0" rx="10" fill="#d6e8f8" stroke="#1565c0" stroke-width="1.6"/>
-<rect x="32.0" y="254.0" width="7" height="108.0" rx="2" fill="#1565c0"/>
-<text x="48.0" y="282.0" text-anchor="start" font-family="sans-serif" font-size="13" font-weight="700" fill="#1565c0">应用 Worker</text>
-<text x="48.0" y="312.0" text-anchor="start" font-family="sans-serif" font-size="17" font-weight="700" fill="#1c1b16">6. batch 入队  marl::schedule</text>
-<polygon points="398.0,301.0 420.0,308.0 398.0,315.0" fill="#9a9486"/>
-<rect x="423.0" y="254.0" width="363.0" height="108.0" rx="10" fill="#d6e8f8" stroke="#1565c0" stroke-width="1.6"/>
-<rect x="423.0" y="254.0" width="7" height="108.0" rx="2" fill="#1565c0"/>
-<text x="439.0" y="282.0" text-anchor="start" font-family="sans-serif" font-size="13" font-weight="700" fill="#1565c0">应用 Worker</text>
-<text x="439.0" y="312.0" text-anchor="start" font-family="sans-serif" font-size="17" font-weight="700" fill="#1c1b16">7. 顶点 → 图元 → 像素</text>
-<polygon points="789.0,301.0 811.0,308.0 789.0,315.0" fill="#9a9486"/>
-<rect x="814.0" y="254.0" width="363.0" height="108.0" rx="10" fill="#f7f4ee" stroke="#c8c1b0" stroke-width="1.6"/>
-<text x="830.0" y="282.0" text-anchor="start" font-family="sans-serif" font-size="13" font-weight="700" fill="#5c584e">CPU 内存</text>
-<text x="830.0" y="312.0" text-anchor="start" font-family="sans-serif" font-size="17" font-weight="700" fill="#1c1b16">8. 颜色在 vk::Image</text>
-<polygon points="1180.0,301.0 1202.0,308.0 1180.0,315.0" fill="#9a9486"/>
-<rect x="1205.0" y="254.0" width="363.0" height="108.0" rx="10" fill="#f7f4ee" stroke="#c8c1b0" stroke-width="1.6"/>
-<text x="1221.0" y="282.0" text-anchor="start" font-family="sans-serif" font-size="13" font-weight="700" fill="#5c584e">Android 导出</text>
-<text x="1221.0" y="312.0" text-anchor="start" font-family="sans-serif" font-size="17" font-weight="700" fill="#1c1b16">9. memcpy 到 AHB，queueBuffer</text>
-<polygon points="1379.5,368.0 1393.5,368.0 1386.5,386.0" fill="#9a9486"/>
-<text x="32.0" y="400.0" text-anchor="start" font-family="sans-serif" font-size="15" font-weight="700" fill="#6a1b9a">SurfaceFlinger · 另一份 ICD，另一套 ThreadCount</text>
-<rect x="32.0" y="412.0" width="363.0" height="108.0" rx="10" fill="#f0e4f6" stroke="#6a1b9a" stroke-width="1.6"/>
-<rect x="32.0" y="412.0" width="7" height="108.0" rx="2" fill="#6a1b9a"/>
-<text x="48.0" y="440.0" text-anchor="start" font-family="sans-serif" font-size="13" font-weight="700" fill="#6a1b9a">SF 主线程</text>
-<text x="48.0" y="470.0" text-anchor="start" font-family="sans-serif" font-size="17" font-weight="700" fill="#1c1b16">10. 排图层、Client 合成</text>
-<polygon points="398.0,459.0 420.0,466.0 398.0,473.0" fill="#9a9486"/>
-<rect x="423.0" y="412.0" width="363.0" height="108.0" rx="10" fill="#f0e4f6" stroke="#6a1b9a" stroke-width="1.6"/>
-<rect x="423.0" y="412.0" width="7" height="108.0" rx="2" fill="#6a1b9a"/>
-<text x="439.0" y="440.0" text-anchor="start" font-family="sans-serif" font-size="13" font-weight="700" fill="#6a1b9a">SF Queue</text>
-<text x="439.0" y="470.0" text-anchor="start" font-family="sans-serif" font-size="17" font-weight="700" fill="#1c1b16">11. 自己的 vkQueueSubmit</text>
-<polygon points="789.0,459.0 811.0,466.0 789.0,473.0" fill="#9a9486"/>
-<rect x="814.0" y="412.0" width="363.0" height="108.0" rx="10" fill="#f0e4f6" stroke="#6a1b9a" stroke-width="1.6"/>
-<rect x="814.0" y="412.0" width="7" height="108.0" rx="2" fill="#6a1b9a"/>
-<text x="830.0" y="440.0" text-anchor="start" font-family="sans-serif" font-size="13" font-weight="700" fill="#6a1b9a">SF Worker</text>
-<text x="830.0" y="470.0" text-anchor="start" font-family="sans-serif" font-size="17" font-weight="700" fill="#1c1b16">12. 采样各层 + 片元写出</text>
-<polygon points="1180.0,459.0 1202.0,466.0 1180.0,473.0" fill="#9a9486"/>
-<rect x="1205.0" y="412.0" width="363.0" height="108.0" rx="10" fill="#e4f0e2" stroke="#2e7d32" stroke-width="1.6"/>
-<text x="1221.0" y="440.0" text-anchor="start" font-family="sans-serif" font-size="13" font-weight="700" fill="#2e7d32">显示 / redroid</text>
-<text x="1221.0" y="470.0" text-anchor="start" font-family="sans-serif" font-size="17" font-weight="700" fill="#1c1b16">13. 上屏</text>
-<rect x="32.0" y="548.0" width="1536.0" height="320.0" rx="10" fill="#ffffff" stroke="#c8c1b0" stroke-width="1.2"/>
-<text x="52.0" y="584.0" text-anchor="start" font-family="sans-serif" font-size="18" font-weight="700" fill="#1c1b16">一块 batch 在 Worker 里（步骤 7 / 12）</text>
-<text x="52.0" y="620.0" text-anchor="start" font-family="sans-serif" font-size="15" font-weight="400" fill="#1c1b16">DrawCall::run  →  marl::schedule(batch)  →  processVertices（VertexRoutine）  →  processPrimitives（SetupRoutine）  →  processPixels（PixelRoutine + sampler，四像素一组）</text>
-<text x="52.0" y="650.0" text-anchor="start" font-family="sans-serif" font-size="15" font-weight="400" fill="#1c1b16">没活：spinForWork 空转一会儿，再 wait() 睡觉。挡住了：suspend，切纤程（Fiber），同一条 OS 线程接着干别的。</text>
-<text x="52.0" y="686.0" text-anchor="start" font-family="sans-serif" font-size="14" font-weight="400" fill="#5c584e">不是 Worker：UI 线程、RenderThread、Queue、SF 主线程。绑核只限制坐哪几把椅子；条数认 cwd 的 ThreadCount，否则 min(看见的逻辑核, 16)。应用和 SF 各走一遍这条链。</text>
-<rect x="52.0" y="716.0" width="736.0" height="128.0" rx="8" fill="#d6e8f8" stroke="#1565c0" stroke-width="1.2"/>
-<text x="72.0" y="746.0" text-anchor="start" font-family="sans-serif" font-size="16" font-weight="700" fill="#1565c0">应用 Worker 池</text>
-<text x="72.0" y="774.0" text-anchor="start" font-family="sans-serif" font-size="14" font-weight="400" fill="#1c1b16">画这一帧应用自己的像素。Thread&lt;NN&gt; 在应用进程里。</text>
-<text x="72.0" y="800.0" text-anchor="start" font-family="sans-serif" font-size="14" font-weight="400" fill="#5c584e">ini / ThreadCount 看应用进程 cwd。</text>
-<text x="72.0" y="826.0" text-anchor="start" font-family="sans-serif" font-size="14" font-weight="400" fill="#5c584e">perf：应用侧 PixelRoutine / sampler。</text>
-<rect x="808.0" y="716.0" width="736.0" height="128.0" rx="8" fill="#f0e4f6" stroke="#6a1b9a" stroke-width="1.2"/>
-<text x="828.0" y="746.0" text-anchor="start" font-family="sans-serif" font-size="16" font-weight="700" fill="#6a1b9a">SF Worker 池</text>
-<text x="828.0" y="774.0" text-anchor="start" font-family="sans-serif" font-size="14" font-weight="400" fill="#1c1b16">Client 合成时再画一遍。另一份 vulkan.pastel.so。</text>
-<text x="828.0" y="800.0" text-anchor="start" font-family="sans-serif" font-size="14" font-weight="400" fill="#5c584e">ini / ThreadCount 看 SurfaceFlinger 的 cwd。</text>
-<text x="828.0" y="826.0" text-anchor="start" font-family="sans-serif" font-size="14" font-weight="400" fill="#5c584e">秒表场景常常比应用侧更热（全屏采样）。</text>
-</svg>
+    <section class="stage" aria-label="16比9：从应用到上屏，内容同第一版 HTML">
+      <div class="canvas">
+        <header>
+          <div>
+            <h1>从应用渲染循环到上屏：Worker 在哪</h1>
+            <p class="sub">redroid guest + <code>vulkan.pastel.so</code> · 秒表 / HWUI 这一路</p>
+          </div>
+          <p class="legend">
+            <span class="w">蓝：应用 Worker（Thread&lt;NN&gt;）</span>
+            <span class="s">紫：SF Worker（另一份 ICD）</span>
+            <span>白：别的线程</span>
+          </p>
+        </header>
+        <p class="lead">一帧里 Worker 只出现两次：<strong>应用自己的 pastel 线程池</strong>画应用的像素，<strong>SurfaceFlinger 自己的 pastel 线程池</strong>做合成。中间提交命令、排队、拷到 AHardwareBuffer、上屏，都不是 Worker 做的。</p>
+        <div class="flow">
+<div class="row">
+<article class="step other"><div class="who">显示 / Choreographer</div><div class="title">1. Vsync 到了</div><div class="detail">系统按目标帧率（如 30）发垂直同步。应用主线程被叫醒，开始这一帧。</div></article>
+<div class="arr" aria-hidden="true">→</div>
+<article class="step other"><div class="who">应用 UI 线程</div><div class="title">2. 改界面、记 DisplayList</div><div class="detail">秒表改数字、invalidate。真正画图不在这条线程，交给 RenderThread。</div></article>
+<div class="arr" aria-hidden="true">→</div>
+<article class="step other"><div class="who">应用 RenderThread + HWUI / Skia</div><div class="title">3. 把 DisplayList 变成 Vulkan 命令</div><div class="detail">GLES 会先经 ANGLE 再进 pastel；Vulkan 直接进 pastel。这里是 <code>vkCmdDraw</code> 等，只往命令缓冲里记，几乎不算像素。</div></article>
+<div class="arr" aria-hidden="true">→</div>
+<article class="step other"><div class="who">应用 Vulkan Queue 线程（Queue&lt;…&gt;）</div><div class="title">4. <code>vkQueueSubmit</code>：命令真正开始执行</div><div class="detail"><code>Queue::submit</code> 把任务丢进内部队列；<code>taskLoop</code> 里 <code>bind()</code> 调度器后逐条执行命令缓冲。这条线程不是 Thread&lt;NN&gt;。</div></article>
+<div class="arr" aria-hidden="true">→</div>
+<article class="step other"><div class="who">SwiftShader Renderer</div><div class="title">5. <code>Renderer::draw</code>：为这次绘制准备 Routine</div><div class="detail">按管线状态找或现场 JIT：VertexRoutine、SetupRoutine、PixelRoutine、sampler。第一次会编，之后复用。</div></article>
+</div>
+<div class="drop">↓</div>
+<div class="row">
+<article class="step worker"><div class="who">应用 Worker · marl::schedule</div><div class="title">6. 切成 batch，丢进线程池 —— Worker 从这里开始干活</div><div class="detail"><code>DrawCall::run</code> 按最多约 128 个图元一块 <code>marl::schedule</code>。哪条 Worker 空谁拿。没有任务图引擎。</div></article>
+<div class="arr" aria-hidden="true">→</div>
+<article class="step worker"><div class="who">同一条应用 Worker 上顺序做完一块</div><div class="title">7. 顶点 → 图元 → 像素</div><div class="detail"><code>processVertices</code> 跑顶点 JIT；<code>processPrimitives</code> 裁剪、装配、边方程；<code>processPixels</code> 四像素一组光栅化 + 片元 + 采样 + 写颜色/深度。perf 里的 PixelRoutine / sampler 主要在这。</div></article>
+<div class="arr" aria-hidden="true">→</div>
+<article class="step other"><div class="who">应用进程 · CPU 上的 vk::Image</div><div class="title">8. 这一帧的颜色已经在内存里</div><div class="detail">没有 GPU framebuffer。Queue 在 fence 前会 <code>renderer-&gt;synchronize()</code>，等所有 batch 做完。</div></article>
+<div class="arr" aria-hidden="true">→</div>
+<article class="step other"><div class="who">应用 · Android 图像导出</div><div class="title">9. 拷到 AHardwareBuffer，交给 BufferQueue</div><div class="detail"><code>vkQueueSignalReleaseImageANDROID</code> → 按行 memcpy 到 AHB（memfd）。然后 <code>queueBuffer</code> 给 SurfaceFlinger。这一步常是 memcpy 热点，不是 Worker 空转。</div></article>
+</div>
+<div class="drop">↓</div>
+<div class="row">
+<article class="step sf"><div class="who">SurfaceFlinger 主线程</div><div class="title">10. 合成这一屏：各层排在哪</div><div class="detail">读应用刚交来的 buffer，加上状态栏、壁纸等。能走 HWC 直通就少算像素；走 Client 合成就要再画一遍。</div></article>
+<div class="arr" aria-hidden="true">→</div>
+<article class="step sf"><div class="who">SF 的 pastel（另一份 ICD）</div><div class="title">11. SF 自己的 vkQueueSubmit</div><div class="detail">合成 shader 再走一遍 4→7，但是 <strong>SF 进程里另一套 Worker</strong>，ini、ThreadCount 各算各的。</div></article>
+<div class="arr" aria-hidden="true">→</div>
+<article class="step worker"><div class="who">SF Worker · Thread&lt;NN&gt;</div><div class="title">12. 采样各层、做片元、写出合成结果</div><div class="detail">秒表场景里 SF 侧 PixelRoutine + bilinear sampler 经常比应用侧更热：全屏图层、逐像素采样。</div></article>
+<div class="arr" aria-hidden="true">→</div>
+<article class="step other"><div class="who">显示 / redroid</div><div class="title">13. 上屏</div><div class="detail">合成结果进 framebuffer / 虚拟屏。scrcpy 另走一条编码，不是这条 pastel Worker。</div></article>
+</div>
+        </div>
+        <div class="bottom">
+          <div class="panel batch">
+            <h2>一块 batch 在 Worker 里怎么跑</h2>
+            <pre>DrawCall::run
+  marl::schedule(batch)     ← 入队，哪条空闲 Worker 领走
+    processVertices         ← VertexRoutine JIT
+    processPrimitives       ← SetupRoutine
+    processPixels           ← PixelRoutine + sampler，写 vk::Image
+没有活：spinForWork（空转）→ wait() 睡觉
+有活被挡住：suspend，切到另一条纤程（Fiber），同一条 OS 线程继续干别的</pre>
+          </div>
+          <div class="panel">
+            <h2>谁在干活（别把线程认错）</h2>
+            <table>
+              <thead>
+                <tr><th>名字</th><th>进程</th><th>干什么</th><th>是不是 Worker</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>主线程 / UI</td><td>应用</td><td>改 View、收输入</td><td>否</td></tr>
+                <tr><td>RenderThread</td><td>应用</td><td>HWUI 录命令、submit</td><td>否</td></tr>
+                <tr><td>Queue&lt;…&gt;</td><td>应用或 SF</td><td>执行命令缓冲、synchronize</td><td>否（Queue 线程）</td></tr>
+                <tr><td>Thread&lt;NN&gt;</td><td>应用</td><td>算应用的像素</td><td><strong>是</strong></td></tr>
+                <tr><td>surfaceflinger</td><td>SF</td><td>图层决策、交合成</td><td>否</td></tr>
+                <tr><td>Thread&lt;NN&gt;</td><td>SF</td><td>算合成像素</td><td><strong>是</strong></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <p class="foot">应用和 SF 各加载一份 <code>vulkan.pastel.so</code>，各有一份 marl 池子。4 核上看到两套 <code>Thread&lt;00&gt;…</code> 是正常的。上屏：<code>vkQueueSignalReleaseImageANDROID</code> → AHB，不是桌面的 <code>vkQueuePresentKHR</code>。</p>
+      </div>
     </section>
   </div>
+  <script>
+    (function () {
+      var stage = document.querySelector(".stage");
+      var canvas = document.querySelector(".canvas");
+      function fit() {
+        canvas.style.transform = "scale(" + (stage.clientWidth / 1920) + ")";
+      }
+      fit();
+      if (window.ResizeObserver) new ResizeObserver(fit).observe(stage);
+      window.addEventListener("resize", fit);
+    })();
+  </script>
 </body>
 </html>
