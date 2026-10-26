@@ -48,7 +48,7 @@
 <text x="1551.2" y="412" font-family="sans-serif" font-size="15" font-weight="700" fill="#1c1b16">6. 切成 batch，丢进线程池 —— Worker 从这里开</text>
 <text x="1551.2" y="432" font-family="sans-serif" font-size="15" font-weight="700" fill="#1c1b16">始干活</text>
 <text x="1551.2" y="456" font-family="sans-serif" font-size="13" fill="#5c584e">DrawCall::run 按最多约 128 个图元一块 marl::schedule。</text>
-<text x="1551.2" y="474" font-family="sans-serif" font-size="13" fill="#5c584e">哪条 Worker 空谁拿。没有任务图引擎。</text>
+<text x="1551.2" y="474" font-family="sans-serif" font-size="13" fill="#5c584e">哪条 Worker 空谁拿。</text>
 <rect x="1160.4" y="368" width="356.8" height="196" rx="8" fill="#e3eef9" stroke="#90b4e0"/>
 <text x="1172.4" y="390" font-family="sans-serif" font-size="12" font-weight="700" fill="#1565c0">同一条应用 Worker 上顺序做完一块</text>
 <text x="1172.4" y="412" font-family="sans-serif" font-size="15" font-weight="700" fill="#1c1b16">7. 顶点 → 图元 → 像素</text>

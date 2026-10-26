@@ -44,7 +44,7 @@ STEPS = [
         "kind": "worker",
         "who": "应用 Worker · marl::schedule",
         "title": "6. 切成 batch，丢进线程池 —— Worker 从这里开始干活",
-        "detail": "`DrawCall::run` 按最多约 128 个图元一块 `marl::schedule`。哪条 Worker 空谁拿。没有任务图引擎。",
+        "detail": "`DrawCall::run` 按最多约 128 个图元一块 `marl::schedule`。哪条 Worker 空谁拿。",
     },
     {
         "kind": "worker",
