@@ -33,3 +33,5 @@ EnableSpirvProfiling=true
 ----
 
 请参阅 [SwiftConfig.hpp](../src/System/SwiftConfig.hpp) 头文件，以获取可用选项的最新概览。
+
+`ThreadCount` 和绑核各管什么，见一页说明：[Worker 是什么，绑核后条数谁说了算](MarlWorker.zh.html)。

@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>从应用渲染循环到上屏：Worker 在哪</title>
+  <style>
+    :root {
+      --bg: #f6f4ef;
+      --card: #fff;
+      --ink: #1c1b16;
+      --muted: #5c584e;
+      --line: #d9d3c5;
+      --worker: #1565c0;
+      --worker-bg: #e3eef9;
+      --other: #5c584e;
+      --other-bg: #fff;
+      --sf: #6a1b9a;
+      --sf-bg: #f3e8f8;
+      --note: #f3efe4;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font: 16px/1.55 system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      color: var(--ink);
+      background: var(--bg);
+    }
+    main { max-width: 920px; margin: 0 auto; padding: 32px 20px 64px; }
+    h1 { font-size: 26px; line-height: 1.3; margin: 0 0 8px; }
+    h2 { font-size: 20px; margin: 32px 0 12px; }
+    .muted { color: var(--muted); }
+    .lead { font-size: 17px; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 14px 16px;
+      margin: 12px 0;
+    }
+    .answer { background: #e8f0e4; border-color: #b7c9b0; }
+    code {
+      font-family: ui-monospace, "Cascadia Code", "Courier New", monospace;
+      font-size: 0.9em;
+      background: var(--note);
+      padding: 1px 5px;
+      border-radius: 4px;
+    }
+    .flow { display: flex; flex-direction: column; align-items: stretch; gap: 0; }
+    .step {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px 14px;
+      background: var(--other-bg);
+    }
+    .step.worker { background: var(--worker-bg); border-color: #90b4e0; }
+    .step.sf { background: var(--sf-bg); border-color: #ce93d8; }
+    .step .who {
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: none;
+      color: var(--muted);
+      margin-bottom: 2px;
+    }
+    .step.worker .who { color: var(--worker); }
+    .step.sf .who { color: var(--sf); }
+    .step .title { font-weight: 650; }
+    .step .detail { font-size: 14px; color: var(--muted); margin: 4px 0 0; }
+    .arrow {
+      text-align: center;
+      color: var(--muted);
+      font-size: 18px;
+      line-height: 1.2;
+      padding: 2px 0;
+    }
+    table { width: 100%; border-collapse: collapse; background: #fff; }
+    th, td { border: 1px solid var(--line); padding: 8px 10px; text-align: left; vertical-align: top; }
+    th { background: var(--note); }
+    .legend span {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      border: 1px solid var(--line);
+      margin-right: 8px;
+      font-size: 13px;
+    }
+    .legend .w { background: var(--worker-bg); border-color: #90b4e0; }
+    .legend .s { background: var(--sf-bg); border-color: #ce93d8; }
+    footer { margin-top: 36px; font-size: 13px; color: var(--muted); }
+    a { color: #0b57d0; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>从应用渲染循环到上屏：Worker 在哪</h1>
+  <p class="muted">redroid guest + <code>vulkan.pastel.so</code> · 秒表 / HWUI 这一路</p>
+
+  <div class="card answer">
+    <p class="lead">一帧里 Worker 只出现两次：<strong>应用自己的 pastel 线程池</strong>画应用的像素，<strong>SurfaceFlinger 自己的 pastel 线程池</strong>做合成。中间提交命令、排队、拷到 AHardwareBuffer、上屏，都不是 Worker 做的。</p>
+  </div>
+
+  <p class="legend">
+    <span class="w">蓝：应用 Worker（Thread&lt;NN&gt;）</span>
+    <span class="s">紫：SF Worker（另一份 ICD）</span>
+    <span>白：别的线程</span>
+  </p>
+
+  <h2>一整帧</h2>
+  <div class="flow">
+
+    <div class="step">
+      <div class="who">显示 / Choreographer</div>
+      <div class="title">1. Vsync 到了</div>
+      <div class="detail">系统按目标帧率（如 30）发垂直同步。应用主线程被叫醒，开始这一帧。</div>
+    </div>
+    <div class="arrow">▼</div>
+
+    <div class="step">
+      <div class="who">应用 UI 线程</div>
+      <div class="title">2. 改界面、记 DisplayList</div>
+      <div class="detail">秒表改数字、invalidate。真正画图不在这条线程，交给 RenderThread。</div>
+    </div>
+    <div class="arrow">▼</div>
+
+    <div class="step">
+      <div class="who">应用 RenderThread + HWUI / Skia</div>
+      <div class="title">3. 把 DisplayList 变成 Vulkan 命令</div>
+      <div class="detail">GLES 会先经 ANGLE 再进 pastel；Vulkan 直接进 pastel。这里是 <code>vkCmdDraw</code> 等，只往命令缓冲里记，几乎不算像素。</div>
+    </div>
+    <div class="arrow">▼</div>
+
+    <div class="step">
+      <div class="who">应用 Vulkan Queue 线程（Queue&lt;…&gt;）</div>
+      <div class="title">4. <code>vkQueueSubmit</code>：命令真正开始执行</div>
+      <div class="detail"><code>Queue::submit</code> 把任务丢进内部队列；<code>taskLoop</code> 里 <code>bind()</code> 调度器后逐条执行命令缓冲。这条线程不是 Thread&lt;NN&gt;。</div>
+    </div>
+    <div class="arrow">▼</div>
+
+    <div class="step">
+      <div class="who">SwiftShader Renderer</div>
+      <div class="title">5. <code>Renderer::draw</code>：为这次绘制准备 Routine</div>
+      <div class="detail">按管线状态找或现场 JIT：VertexRoutine、SetupRoutine、PixelRoutine、sampler。第一次会编，之后复用。</div>
+    </div>
+    <div class="arrow">▼</div>
+
+    <div class="step worker">
+      <div class="who">应用 Worker · marl::schedule</div>
+      <div class="title">6. 切成 batch，丢进线程池 —— Worker 从这里开始干活</div>
+      <div class="detail"><code>DrawCall::run</code> 按最多约 128 个图元一块 <code>marl::schedule</code>。哪条 Worker 空谁拿。没有任务图引擎。</div>
+    </div>
+    <div class="arrow">▼</div>
+
+    <div class="step worker">
+      <div class="who">同一条应用 Worker 上顺序做完一块</div>
+      <div class="title">7. 顶点 → 图元 → 像素</div>
+      <div class="detail">
+        <code>processVertices</code> 跑顶点 JIT；<code>processPrimitives</code> 裁剪、装配、边方程；
+        <code>processPixels</code> 四像素一组光栅化 + 片元 + 采样 + 写颜色/深度。
+        perf 里的 PixelRoutine / sampler 主要在这。
+      </div>
+    </div>
+    <div class="arrow">▼</div>
+
+    <div class="step">
+      <div class="who">应用进程 · CPU 上的 vk::Image</div>
+      <div class="title">8. 这一帧的颜色已经在内存里</div>
+      <div class="detail">没有 GPU framebuffer。Queue 在 fence 前会 <code>renderer->synchronize()</code>，等所有 batch 做完。</div>
+    </div>
+    <div class="arrow">▼</div>
+
+    <div class="step">
+      <div class="who">应用 · Android 图像导出</div>
+      <div class="title">9. 拷到 AHardwareBuffer，交给 BufferQueue</div>
+      <div class="detail">
+        <code>vkQueueSignalReleaseImageANDROID</code> → 按行 memcpy 到 AHB（memfd）。
+        然后 <code>queueBuffer</code> 给 SurfaceFlinger。这一步常是 memcpy 热点，不是 Worker 空转。
+      </div>
+    </div>
+    <div class="arrow">▼</div>
+
+    <div class="step sf">
+      <div class="who">SurfaceFlinger 主线程</div>
+      <div class="title">10. 合成这一屏：各层排在哪</div>
+      <div class="detail">读应用刚交来的 buffer，加上状态栏、壁纸等。能走 HWC 直通就少算像素；走 Client 合成就要再画一遍。</div>
+    </div>
+    <div class="arrow">▼</div>
+
+    <div class="step sf">
+      <div class="who">SF 的 pastel（另一份 ICD）</div>
+      <div class="title">11. SF 自己的 vkQueueSubmit</div>
+      <div class="detail">合成 shader 再走一遍 4→7，但是 <strong>SF 进程里另一套 Worker</strong>，ini、ThreadCount 各算各的。</div>
+    </div>
+    <div class="arrow">▼</div>
+
+    <div class="step worker">
+      <div class="who">SF Worker · Thread&lt;NN&gt;</div>
+      <div class="title">12. 采样各层、做片元、写出合成结果</div>
+      <div class="detail">秒表场景里 SF 侧 PixelRoutine + bilinear sampler 经常比应用侧更热：全屏图层、逐像素采样。</div>
+    </div>
+    <div class="arrow">▼</div>
+
+    <div class="step">
+      <div class="who">显示 / redroid</div>
+      <div class="title">13. 上屏</div>
+      <div class="detail">合成结果进 framebuffer / 虚拟屏。scrcpy 另走一条编码，不是这条 pastel Worker。</div>
+    </div>
+  </div>
+
+  <h2>一块 batch 在 Worker 里怎么跑</h2>
+  <div class="card">
+    <pre style="margin:0;white-space:pre-wrap;font-family:ui-monospace,monospace;font-size:13px;">DrawCall::run
+  marl::schedule(batch)     ← 入队，哪条空闲 Worker 领走
+    processVertices         ← VertexRoutine JIT
+    processPrimitives       ← SetupRoutine
+    processPixels           ← PixelRoutine + sampler，写 vk::Image
+没有活：spinForWork（空转）→ wait() 睡觉
+有活被挡住：suspend，切到另一条纤程（Fiber），同一条 OS 线程继续干别的</pre>
+  </div>
+
+  <h2>谁在干活（别把线程认错）</h2>
+  <table>
+    <thead>
+      <tr><th>名字</th><th>进程</th><th>干什么</th><th>是不是 Worker</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>主线程 / UI</td><td>应用</td><td>改 View、收输入</td><td>否</td></tr>
+      <tr><td>RenderThread</td><td>应用</td><td>HWUI 录命令、submit</td><td>否</td></tr>
+      <tr><td>Queue&lt;…&gt;</td><td>应用或 SF</td><td>执行命令缓冲、synchronize</td><td>否（Queue 线程）</td></tr>
+      <tr><td>Thread&lt;NN&gt;</td><td>应用</td><td>算应用的像素</td><td><strong>是</strong></td></tr>
+      <tr><td>surfaceflinger</td><td>SF</td><td>图层决策、交合成</td><td>否</td></tr>
+      <tr><td>Thread&lt;NN&gt;</td><td>SF</td><td>算合成像素</td><td><strong>是</strong></td></tr>
+    </tbody>
+  </table>
+
+  <p>应用和 SF 各加载一份 <code>vulkan.pastel.so</code>，各有一份 marl 池子。4 核上看到两套 <code>Thread&lt;00&gt;…</code> 是正常的。</p>
+
+  <footer>
+    应用侧：<code>VkQueue.cpp</code> 的 <code>submit</code> / <code>taskLoop</code>，<code>Renderer.cpp</code> 的 <code>draw</code> / <code>DrawCall::run</code>。<br>
+    上屏：<code>vkQueueSignalReleaseImageANDROID</code> → AHB，不是桌面的 <code>vkQueuePresentKHR</code>。<br>
+    Worker 条数：<a href="MarlWorker.zh.html">Worker 是什么，绑核后条数谁说了算</a>
+  </footer>
+</main>
+</body>
+</html>
