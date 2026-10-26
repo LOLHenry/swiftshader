@@ -55,6 +55,8 @@ src/WSI        窗口系统：swapchain / present（桌面）；Android 多用 A
    - `processPixels`：四像素一组光栅化 + 片元着色 + 写颜色/深度
 5. 输出写到 `vk::Image` 的设备内存。上屏另走拷贝路径（见第 4 节）。
 
+从应用渲染循环到上屏、Worker 出现在哪两步，见 [MarlWorkerFrame.zh.html](../MarlWorkerFrame.zh.html)。
+
 计算着色器不经过 Renderer，走 `ComputePipeline` → `ComputeProgram`。
 
 ## 3. JIT 在 perf 里长什么样
