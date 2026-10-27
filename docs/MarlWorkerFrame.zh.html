@@ -167,6 +167,36 @@
     <span>白：别的线程</span>
   </p>
 
+  <h2>缩略释义</h2>
+  <p class="muted">这张图里出现的缩写，按出现顺序。人话只解释「在这张图里指什么」。</p>
+  <table>
+    <thead>
+      <tr><th>缩写</th><th>人话</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>SF</td><td>SurfaceFlinger，Android 系统合成器。各应用先画自己的图，它再叠成你看见的那一屏。</td></tr>
+      <tr><td>ICD</td><td>Installable Client Driver，可安装的 Vulkan 驱动。这张图里就是 <code>vulkan.pastel.so</code>。应用和 SF 各加载一份。</td></tr>
+      <tr><td>HWUI</td><td>Hardware UI，Android 画 View 的库。应用改界面，真正出绘制命令的是它（再交给 Skia / Vulkan）。</td></tr>
+      <tr><td>JIT</td><td>现场编译：第一次遇到这种画法才把 Routine 编成机器码，之后复用。</td></tr>
+      <tr><td>AHB</td><td>AHardwareBuffer，一块能交给合成器的图。guest 上屏走拷到 AHB，不是桌面的 <code>vkQueuePresentKHR</code>。</td></tr>
+      <tr><td>HWC</td><td>Hardware Composer。能直通（DEVICE）就不用 SF 再画一遍；走不了就 Client 合成，再请 pastel 算像素。</td></tr>
+      <tr><td>cwd</td><td>current working directory，进程当前工作目录。<code>SwiftShader.ini</code> 只从这里读，应用和 SF 各看各的。</td></tr>
+      <tr><td>GLES</td><td>OpenGL ES，老的画图接口。会先经 ANGLE 再进 pastel；Vulkan 则直接进 pastel。</td></tr>
+      <tr><td>ANGLE</td><td>把 GLES 调用翻译成 Vulkan 的库。</td></tr>
+      <tr><td>Vsync</td><td>垂直同步。系统按目标帧率叫醒应用，开始新的一帧。</td></tr>
+      <tr><td>Na / Ns</td><td>应用 / SF 各自雇了几条 Worker。由各自 cwd 里的 <code>ThreadCount</code> 决定，不是绑了几个核。</td></tr>
+      <tr><td>nop</td><td>空指令。spin 时空转：核约 100%，但没算像素。</td></tr>
+      <tr><td>Client</td><td>SF 的「自己再画一遍」合成路径，相对 HWC 直通。</td></tr>
+      <tr><td>ini</td><td><code>SwiftShader.ini</code>。Worker 条数写在 <code>[Processor] ThreadCount</code>。</td></tr>
+      <tr><td>Fiber</td><td>纤程。同一条 OS 线程上切换任务，不是再雇一条线程。</td></tr>
+      <tr><td>marl</td><td>SwiftShader 用的线程池库。名字叫 <code>Thread&lt;NN&gt;</code> 的 Worker 是它雇的。</td></tr>
+      <tr><td>pastel</td><td>SwiftShader 在 Android 上的 Vulkan 实现名，文件是 <code>vulkan.pastel.so</code>。</td></tr>
+      <tr><td>Routine</td><td>JIT 编出来的函数。顶点 / 装配 / 像素各一份，按这次绘制的状态特化。</td></tr>
+      <tr><td>DisplayList</td><td>显示列表：UI 线程记下「这一帧画什么」，还不是像素。</td></tr>
+      <tr><td>ThreadCount</td><td>雇几条 Worker。写 0 或不写 → <code>min(看见的核, 16)</code>，4 核上常变成 16。</td></tr>
+    </tbody>
+  </table>
+
   <h2>一整帧</h2>
   <div class="flow">
 

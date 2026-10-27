@@ -133,6 +133,42 @@ def arr(ch: str, col: int, row: int) -> str:
     )
 
 
+# Abbreviations that appear on the 16:9 slide. Keep glosses short.
+GLOSS = [
+    ("SF", "SurfaceFlinger，系统合成器"),
+    ("ICD", "Vulkan 驱动，本图是 vulkan.pastel.so"),
+    ("HWUI", "Android 画 View 的库"),
+    ("JIT", "现场编译，第一次才编"),
+    ("AHB", "AHardwareBuffer，给合成器的图"),
+    ("HWC", "硬件合成；能直通就少算"),
+    ("cwd", "当前工作目录，ini 只认这"),
+    ("GLES", "OpenGL ES，老画图接口"),
+    ("ANGLE", "把 GLES 翻译成 Vulkan"),
+    ("Vsync", "垂直同步，按帧率叫醒"),
+    ("Na/Ns", "应用 / SF 各雇几条 Worker"),
+    ("nop", "空指令，占核不算像素"),
+    ("Client", "SF 自己再画一遍的合成"),
+    ("ini", "SwiftShader.ini 配置文件"),
+    ("Fiber", "纤程：同一 OS 线程上切"),
+    ("marl", "线程池库，雇 Worker 的"),
+]
+GLOSS_COLS = 4
+
+
+def gloss_html() -> str:
+    rows = []
+    for i in range(0, len(GLOSS), GLOSS_COLS):
+        cells = []
+        for abbr, meaning in GLOSS[i : i + GLOSS_COLS]:
+            cells.append(f"<th>{escape(abbr)}</th><td>{escape(meaning)}</td>")
+        rows.append("<tr>" + "".join(cells) + "</tr>")
+    return (
+        '<table class="gloss"><caption>缩略释义</caption><tbody>'
+        + "".join(rows)
+        + "</tbody></table>"
+    )
+
+
 def flow_html() -> str:
     """Snake: 1→5 down to 6, row 2 right-to-left to 9, down to 10→13."""
     bits = []
@@ -195,7 +231,7 @@ HTML = r"""<!DOCTYPE html>
       padding: 20px 24px 18px;
       display: flex;
       flex-direction: column;
-      gap: 10px;
+      gap: 8px;
     }
     header {
       display: flex;
@@ -293,7 +329,7 @@ HTML = r"""<!DOCTYPE html>
       margin-top: 4px;
     }
     .bottom {
-      flex: 0 0 348px;
+      flex: 0 0 328px;
       display: grid;
       grid-template-columns: 1.25fr 1fr;
       gap: 12px;
@@ -389,6 +425,38 @@ HTML = r"""<!DOCTYPE html>
       color: #5c584e;
       line-height: 1.4;
     }
+    .gloss {
+      flex: 0 0 auto;
+      width: 100%;
+      border-collapse: collapse;
+      background: #fff;
+      font-size: 11px;
+      line-height: 1.3;
+    }
+    .gloss caption {
+      caption-side: top;
+      text-align: left;
+      font-weight: 700;
+      font-size: 13px;
+      padding: 0 0 3px;
+      color: #1c1b16;
+    }
+    .gloss th {
+      white-space: nowrap;
+      font-family: ui-monospace, "Cascadia Code", "Courier New", monospace;
+      font-size: 11px;
+      font-weight: 700;
+      background: #f3efe4;
+      padding: 2px 6px;
+      border: 1px solid #d9d3c5;
+      vertical-align: top;
+    }
+    .gloss td {
+      padding: 2px 8px 2px 6px;
+      border: 1px solid #d9d3c5;
+      color: #5c584e;
+      vertical-align: top;
+    }
   </style>
 </head>
 <body>
@@ -441,7 +509,7 @@ SF    Queue ──schedule──► SF    Worker ×Ns   画合成
     processPrimitives       ← SetupRoutine
     processPixels           ← PixelRoutine + sampler，写 vk::Image
 没有活：spinForWork（空转）→ wait() 睡觉
-有活被挡住：suspend，切到另一条纤程（Fiber），同一条 OS 线程继续干别的</pre>
+有活被挡住：suspend，切纤程（Fiber），同一 OS 线程接着干</pre>
           </div>
           <div class="panel">
             <h2>没活时：spinForWork</h2>
@@ -459,7 +527,7 @@ wait() 睡觉                       ← 只有 while 因超时结束才走到这
             </div>
           </div>
         </div>
-        <p class="foot">应用和 SF 各加载一份 <code>vulkan.pastel.so</code>，各有一份 marl 池子。4 核上看到两套 <code>Thread&lt;00&gt;…</code> 是正常的。上屏：<code>vkQueueSignalReleaseImageANDROID</code> → AHB，不是桌面的 <code>vkQueuePresentKHR</code>。</p>
+        __GLOSS__
       </div>
     </section>
   </div>
@@ -652,14 +720,32 @@ def build_svg() -> str:
     )
 
     parts.append(
-        '<text x="24" y="1062" font-family="sans-serif" font-size="13" fill="#5c584e">应用和 SF 各加载一份 vulkan.pastel.so，各有一份 marl 池子。4 核上看到两套 Thread&lt;00&gt;… 是正常的。上屏：vkQueueSignalReleaseImageANDROID → AHB，不是桌面的 vkQueuePresentKHR。</text>'
+        '<text x="24" y="1026" font-family="sans-serif" font-size="12" font-weight="700" fill="#1c1b16">缩略释义</text>'
     )
+    x0, y0, row_h, col_w, th_w = 24, 1030, 12, 1872 / 4, 78
+    for r in range(4):
+        for c in range(4):
+            abbr, meaning = GLOSS[r * 4 + c]
+            x = x0 + c * col_w
+            y = y0 + r * row_h
+            parts.append(
+                f'<rect x="{x:.1f}" y="{y}" width="{th_w}" height="{row_h}" fill="#f3efe4" stroke="#d9d3c5"/>'
+            )
+            parts.append(
+                f'<rect x="{x + th_w:.1f}" y="{y}" width="{col_w - th_w:.1f}" height="{row_h}" fill="#ffffff" stroke="#d9d3c5"/>'
+            )
+            parts.append(
+                f'<text x="{x + 4:.1f}" y="{y + 10}" font-family="sans-serif" font-size="10" font-weight="700" fill="#1c1b16">{escape(abbr)}</text>'
+            )
+            parts.append(
+                f'<text x="{x + th_w + 4:.1f}" y="{y + 10}" font-family="sans-serif" font-size="10" fill="#5c584e">{escape(meaning)}</text>'
+            )
     parts.append("</svg>\n")
     return "\n".join(parts)
 
 
 def main():
-    html = HTML.replace("__ROWS__", flow_html())
+    html = HTML.replace("__ROWS__", flow_html()).replace("__GLOSS__", gloss_html())
     OUT_HTML.write_text(html, encoding="utf-8")
     svg = build_svg()
     OUT_SVG.write_text(svg, encoding="utf-8")

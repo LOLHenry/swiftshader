@@ -122,5 +122,69 @@
 <text x="1152" y="982" font-family="sans-serif" font-size="11" fill="#1c1b16">1. 调 Worker 数：应用 / SF 各写 ThreadCount。默认常变成 16。</text>
 <text x="1152" y="998" font-family="sans-serif" font-size="11" fill="#1c1b16">   UI 密度可应用 2+SF 2；重渲染可应用 4、SF 1。</text>
 <text x="1152" y="1014" font-family="sans-serif" font-size="11" fill="#1c1b16">2. 调 spin 时长：上限现 1ms。改短少空转；改长更好接活。</text>
-<text x="24" y="1062" font-family="sans-serif" font-size="13" fill="#5c584e">应用和 SF 各加载一份 vulkan.pastel.so，各有一份 marl 池子。4 核上看到两套 Thread&lt;00&gt;… 是正常的。上屏：vkQueueSignalReleaseImageANDROID → AHB，不是桌面的 vkQueuePresentKHR。</text>
+<text x="24" y="1026" font-family="sans-serif" font-size="12" font-weight="700" fill="#1c1b16">缩略释义</text>
+<rect x="24.0" y="1030" width="78" height="12" fill="#f3efe4" stroke="#d9d3c5"/>
+<rect x="102.0" y="1030" width="390.0" height="12" fill="#ffffff" stroke="#d9d3c5"/>
+<text x="28.0" y="1040" font-family="sans-serif" font-size="10" font-weight="700" fill="#1c1b16">SF</text>
+<text x="106.0" y="1040" font-family="sans-serif" font-size="10" fill="#5c584e">SurfaceFlinger，系统合成器</text>
+<rect x="492.0" y="1030" width="78" height="12" fill="#f3efe4" stroke="#d9d3c5"/>
+<rect x="570.0" y="1030" width="390.0" height="12" fill="#ffffff" stroke="#d9d3c5"/>
+<text x="496.0" y="1040" font-family="sans-serif" font-size="10" font-weight="700" fill="#1c1b16">ICD</text>
+<text x="574.0" y="1040" font-family="sans-serif" font-size="10" fill="#5c584e">Vulkan 驱动，本图是 vulkan.pastel.so</text>
+<rect x="960.0" y="1030" width="78" height="12" fill="#f3efe4" stroke="#d9d3c5"/>
+<rect x="1038.0" y="1030" width="390.0" height="12" fill="#ffffff" stroke="#d9d3c5"/>
+<text x="964.0" y="1040" font-family="sans-serif" font-size="10" font-weight="700" fill="#1c1b16">HWUI</text>
+<text x="1042.0" y="1040" font-family="sans-serif" font-size="10" fill="#5c584e">Android 画 View 的库</text>
+<rect x="1428.0" y="1030" width="78" height="12" fill="#f3efe4" stroke="#d9d3c5"/>
+<rect x="1506.0" y="1030" width="390.0" height="12" fill="#ffffff" stroke="#d9d3c5"/>
+<text x="1432.0" y="1040" font-family="sans-serif" font-size="10" font-weight="700" fill="#1c1b16">JIT</text>
+<text x="1510.0" y="1040" font-family="sans-serif" font-size="10" fill="#5c584e">现场编译，第一次才编</text>
+<rect x="24.0" y="1042" width="78" height="12" fill="#f3efe4" stroke="#d9d3c5"/>
+<rect x="102.0" y="1042" width="390.0" height="12" fill="#ffffff" stroke="#d9d3c5"/>
+<text x="28.0" y="1052" font-family="sans-serif" font-size="10" font-weight="700" fill="#1c1b16">AHB</text>
+<text x="106.0" y="1052" font-family="sans-serif" font-size="10" fill="#5c584e">AHardwareBuffer，给合成器的图</text>
+<rect x="492.0" y="1042" width="78" height="12" fill="#f3efe4" stroke="#d9d3c5"/>
+<rect x="570.0" y="1042" width="390.0" height="12" fill="#ffffff" stroke="#d9d3c5"/>
+<text x="496.0" y="1052" font-family="sans-serif" font-size="10" font-weight="700" fill="#1c1b16">HWC</text>
+<text x="574.0" y="1052" font-family="sans-serif" font-size="10" fill="#5c584e">硬件合成；能直通就少算</text>
+<rect x="960.0" y="1042" width="78" height="12" fill="#f3efe4" stroke="#d9d3c5"/>
+<rect x="1038.0" y="1042" width="390.0" height="12" fill="#ffffff" stroke="#d9d3c5"/>
+<text x="964.0" y="1052" font-family="sans-serif" font-size="10" font-weight="700" fill="#1c1b16">cwd</text>
+<text x="1042.0" y="1052" font-family="sans-serif" font-size="10" fill="#5c584e">当前工作目录，ini 只认这</text>
+<rect x="1428.0" y="1042" width="78" height="12" fill="#f3efe4" stroke="#d9d3c5"/>
+<rect x="1506.0" y="1042" width="390.0" height="12" fill="#ffffff" stroke="#d9d3c5"/>
+<text x="1432.0" y="1052" font-family="sans-serif" font-size="10" font-weight="700" fill="#1c1b16">GLES</text>
+<text x="1510.0" y="1052" font-family="sans-serif" font-size="10" fill="#5c584e">OpenGL ES，老画图接口</text>
+<rect x="24.0" y="1054" width="78" height="12" fill="#f3efe4" stroke="#d9d3c5"/>
+<rect x="102.0" y="1054" width="390.0" height="12" fill="#ffffff" stroke="#d9d3c5"/>
+<text x="28.0" y="1064" font-family="sans-serif" font-size="10" font-weight="700" fill="#1c1b16">ANGLE</text>
+<text x="106.0" y="1064" font-family="sans-serif" font-size="10" fill="#5c584e">把 GLES 翻译成 Vulkan</text>
+<rect x="492.0" y="1054" width="78" height="12" fill="#f3efe4" stroke="#d9d3c5"/>
+<rect x="570.0" y="1054" width="390.0" height="12" fill="#ffffff" stroke="#d9d3c5"/>
+<text x="496.0" y="1064" font-family="sans-serif" font-size="10" font-weight="700" fill="#1c1b16">Vsync</text>
+<text x="574.0" y="1064" font-family="sans-serif" font-size="10" fill="#5c584e">垂直同步，按帧率叫醒</text>
+<rect x="960.0" y="1054" width="78" height="12" fill="#f3efe4" stroke="#d9d3c5"/>
+<rect x="1038.0" y="1054" width="390.0" height="12" fill="#ffffff" stroke="#d9d3c5"/>
+<text x="964.0" y="1064" font-family="sans-serif" font-size="10" font-weight="700" fill="#1c1b16">Na/Ns</text>
+<text x="1042.0" y="1064" font-family="sans-serif" font-size="10" fill="#5c584e">应用 / SF 各雇几条 Worker</text>
+<rect x="1428.0" y="1054" width="78" height="12" fill="#f3efe4" stroke="#d9d3c5"/>
+<rect x="1506.0" y="1054" width="390.0" height="12" fill="#ffffff" stroke="#d9d3c5"/>
+<text x="1432.0" y="1064" font-family="sans-serif" font-size="10" font-weight="700" fill="#1c1b16">nop</text>
+<text x="1510.0" y="1064" font-family="sans-serif" font-size="10" fill="#5c584e">空指令，占核不算像素</text>
+<rect x="24.0" y="1066" width="78" height="12" fill="#f3efe4" stroke="#d9d3c5"/>
+<rect x="102.0" y="1066" width="390.0" height="12" fill="#ffffff" stroke="#d9d3c5"/>
+<text x="28.0" y="1076" font-family="sans-serif" font-size="10" font-weight="700" fill="#1c1b16">Client</text>
+<text x="106.0" y="1076" font-family="sans-serif" font-size="10" fill="#5c584e">SF 自己再画一遍的合成</text>
+<rect x="492.0" y="1066" width="78" height="12" fill="#f3efe4" stroke="#d9d3c5"/>
+<rect x="570.0" y="1066" width="390.0" height="12" fill="#ffffff" stroke="#d9d3c5"/>
+<text x="496.0" y="1076" font-family="sans-serif" font-size="10" font-weight="700" fill="#1c1b16">ini</text>
+<text x="574.0" y="1076" font-family="sans-serif" font-size="10" fill="#5c584e">SwiftShader.ini 配置文件</text>
+<rect x="960.0" y="1066" width="78" height="12" fill="#f3efe4" stroke="#d9d3c5"/>
+<rect x="1038.0" y="1066" width="390.0" height="12" fill="#ffffff" stroke="#d9d3c5"/>
+<text x="964.0" y="1076" font-family="sans-serif" font-size="10" font-weight="700" fill="#1c1b16">Fiber</text>
+<text x="1042.0" y="1076" font-family="sans-serif" font-size="10" fill="#5c584e">纤程：同一 OS 线程上切</text>
+<rect x="1428.0" y="1066" width="78" height="12" fill="#f3efe4" stroke="#d9d3c5"/>
+<rect x="1506.0" y="1066" width="390.0" height="12" fill="#ffffff" stroke="#d9d3c5"/>
+<text x="1432.0" y="1076" font-family="sans-serif" font-size="10" font-weight="700" fill="#1c1b16">marl</text>
+<text x="1510.0" y="1076" font-family="sans-serif" font-size="10" fill="#5c584e">线程池库，雇 Worker 的</text>
 </svg>
