@@ -1,0 +1,190 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" width="1920" height="1080" role="img">
+<rect width="1920" height="1080" fill="#f6f4ef"/>
+<text x="24" y="42" font-family="sans-serif" font-size="32" font-weight="700" fill="#1c1b16">从应用渲染循环到上屏：Worker 在哪</text>
+<text x="24" y="68" font-family="sans-serif" font-size="16" fill="#5c584e">redroid guest + vulkan.pastel.so · 普通应用走 HWUI / Vulkan 这一路</text>
+<rect x="1328" y="20" width="196" height="26" rx="4" fill="#e3eef9" stroke="#90b4e0"/>
+<text x="1426" y="38" text-anchor="middle" font-family="sans-serif" font-size="13" fill="#1c1b16">蓝：应用 Worker（Thread&lt;NN&gt;）</text>
+<rect x="1532" y="20" width="178" height="26" rx="4" fill="#f3e8f8" stroke="#ce93d8"/>
+<text x="1621" y="38" text-anchor="middle" font-family="sans-serif" font-size="13" fill="#1c1b16">紫：SF Worker（另一份 ICD）</text>
+<rect x="1718" y="20" width="178" height="26" rx="4" fill="#ffffff" stroke="#d9d3c5"/>
+<text x="1807" y="38" text-anchor="middle" font-family="sans-serif" font-size="13" fill="#1c1b16">白：别的线程</text>
+<rect x="24" y="84" width="1872" height="52" rx="8" fill="#e8f0e4" stroke="#b7c9b0"/>
+<text x="40" y="106" font-family="sans-serif" font-size="16" fill="#1c1b16">一帧里 Worker 只出现两次：应用自己的 pastel 线程池画应用的像素，SurfaceFlinger 自己的 pastel 线程池做合成。</text>
+<text x="40" y="126" font-family="sans-serif" font-size="16" fill="#1c1b16">中间提交命令、排队、拷到 AHardwareBuffer、上屏，都不是 Worker 做的。</text>
+<rect x="24.0" y="148" width="356.8" height="196" rx="8" fill="#ffffff" stroke="#d9d3c5"/>
+<text x="36.0" y="170" font-family="sans-serif" font-size="12" font-weight="700" fill="#5c584e">显示 / Choreographer</text>
+<text x="36.0" y="192" font-family="sans-serif" font-size="15" font-weight="700" fill="#1c1b16">1. Vsync 到了</text>
+<text x="36.0" y="216" font-family="sans-serif" font-size="13" fill="#5c584e">系统按目标帧率（如 30）发垂直同步。应用主线程被叫醒，开</text>
+<text x="36.0" y="234" font-family="sans-serif" font-size="13" fill="#5c584e">始这一帧。</text>
+<text x="391.8" y="252.0" text-anchor="middle" font-family="sans-serif" font-size="18" font-weight="700" fill="#5c584e">→</text>
+<rect x="402.8" y="148" width="356.8" height="196" rx="8" fill="#ffffff" stroke="#d9d3c5"/>
+<text x="414.8" y="170" font-family="sans-serif" font-size="12" font-weight="700" fill="#5c584e">应用 UI 线程</text>
+<text x="414.8" y="192" font-family="sans-serif" font-size="15" font-weight="700" fill="#1c1b16">2. 改界面、记显示列表（DisplayList）</text>
+<text x="414.8" y="216" font-family="sans-serif" font-size="13" fill="#5c584e">应用改 View（文字、布局、可见性），再 invalidate。UI 线</text>
+<text x="414.8" y="234" font-family="sans-serif" font-size="13" fill="#5c584e">程只把「这一帧画什么」记成一份操作清单，还不是像素。真</text>
+<text x="414.8" y="252" font-family="sans-serif" font-size="13" fill="#5c584e">正画图不在这条线程，交给 RenderThread。</text>
+<text x="770.6" y="252.0" text-anchor="middle" font-family="sans-serif" font-size="18" font-weight="700" fill="#5c584e">→</text>
+<rect x="781.6" y="148" width="356.8" height="196" rx="8" fill="#ffffff" stroke="#d9d3c5"/>
+<text x="793.6" y="170" font-family="sans-serif" font-size="12" font-weight="700" fill="#5c584e">应用 RenderThread + HWUI / Skia</text>
+<text x="793.6" y="192" font-family="sans-serif" font-size="15" font-weight="700" fill="#1c1b16">3. 把显示列表变成 Vulkan 命令</text>
+<text x="793.6" y="216" font-family="sans-serif" font-size="13" fill="#5c584e">GLES 会先经 ANGLE 再进 pastel；Vulkan 直接进 pastel。这</text>
+<text x="793.6" y="234" font-family="sans-serif" font-size="13" fill="#5c584e">里是 vkCmdDraw 等，只往命令缓冲里记，几乎不算像素。</text>
+<text x="1149.4" y="252.0" text-anchor="middle" font-family="sans-serif" font-size="18" font-weight="700" fill="#5c584e">→</text>
+<rect x="1160.4" y="148" width="356.8" height="196" rx="8" fill="#ffffff" stroke="#d9d3c5"/>
+<text x="1172.4" y="170" font-family="sans-serif" font-size="12" font-weight="700" fill="#5c584e">应用 Vulkan Queue 线程（Queue&lt;…&gt;）</text>
+<text x="1172.4" y="192" font-family="sans-serif" font-size="15" font-weight="700" fill="#1c1b16">4. vkQueueSubmit：命令真正开始执行</text>
+<text x="1172.4" y="216" font-family="sans-serif" font-size="13" fill="#5c584e">Queue::submit 把任务丢进内部队列；taskLoop 里 bind() 调</text>
+<text x="1172.4" y="234" font-family="sans-serif" font-size="13" fill="#5c584e">度器后逐条执行命令缓冲。这条线程不是 Thread&lt;NN&gt;。</text>
+<text x="1528.2" y="252.0" text-anchor="middle" font-family="sans-serif" font-size="18" font-weight="700" fill="#5c584e">→</text>
+<rect x="1539.2" y="148" width="356.8" height="196" rx="8" fill="#ffffff" stroke="#d9d3c5"/>
+<text x="1551.2" y="170" font-family="sans-serif" font-size="12" font-weight="700" fill="#5c584e">SwiftShader Renderer</text>
+<text x="1551.2" y="192" font-family="sans-serif" font-size="15" font-weight="700" fill="#1c1b16">5. Renderer::draw：为这次绘制准备 Routine</text>
+<text x="1551.2" y="216" font-family="sans-serif" font-size="13" fill="#5c584e">按管线状态找或现场 JIT：VertexRoutine、SetupRoutine、P</text>
+<text x="1551.2" y="234" font-family="sans-serif" font-size="13" fill="#5c584e">ixelRoutine、sampler。第一次会编，之后复用。</text>
+<text x="1717.6" y="362.0" text-anchor="middle" font-family="sans-serif" font-size="18" font-weight="700" fill="#5c584e">↓</text>
+<rect x="1539.2" y="368" width="356.8" height="196" rx="8" fill="#e3eef9" stroke="#90b4e0"/>
+<text x="1551.2" y="390" font-family="sans-serif" font-size="12" font-weight="700" fill="#1565c0">应用 Worker · marl::schedule</text>
+<text x="1551.2" y="412" font-family="sans-serif" font-size="15" font-weight="700" fill="#1c1b16">6. 切成 batch，丢进线程池 —— Worker 从这里开</text>
+<text x="1551.2" y="432" font-family="sans-serif" font-size="15" font-weight="700" fill="#1c1b16">始干活</text>
+<text x="1551.2" y="456" font-family="sans-serif" font-size="13" fill="#5c584e">DrawCall::run 按最多约 128 个图元一块 marl::schedule。</text>
+<text x="1551.2" y="474" font-family="sans-serif" font-size="13" fill="#5c584e">哪条 Worker 空谁拿。</text>
+<rect x="1160.4" y="368" width="356.8" height="196" rx="8" fill="#e3eef9" stroke="#90b4e0"/>
+<text x="1172.4" y="390" font-family="sans-serif" font-size="12" font-weight="700" fill="#1565c0">同一条应用 Worker 上顺序做完一块</text>
+<text x="1172.4" y="412" font-family="sans-serif" font-size="15" font-weight="700" fill="#1c1b16">7. 顶点 → 图元 → 像素</text>
+<text x="1172.4" y="436" font-family="sans-serif" font-size="13" fill="#5c584e">processVertices 跑顶点 JIT；processPrimitives 裁剪、装</text>
+<text x="1172.4" y="454" font-family="sans-serif" font-size="13" fill="#5c584e">配、边方程；processPixels 四像素一组光栅化 + 片元 + 采</text>
+<text x="1172.4" y="472" font-family="sans-serif" font-size="13" fill="#5c584e">样 + 写颜色/深度。perf 里的 PixelRoutine / sampler 主要</text>
+<text x="1172.4" y="490" font-family="sans-serif" font-size="13" fill="#5c584e">在这。</text>
+<rect x="781.6" y="368" width="356.8" height="196" rx="8" fill="#ffffff" stroke="#d9d3c5"/>
+<text x="793.6" y="390" font-family="sans-serif" font-size="12" font-weight="700" fill="#5c584e">应用进程 · CPU 上的 vk::Image</text>
+<text x="793.6" y="412" font-family="sans-serif" font-size="15" font-weight="700" fill="#1c1b16">8. 这一帧的颜色已经在内存里</text>
+<text x="793.6" y="436" font-family="sans-serif" font-size="13" fill="#5c584e">没有 GPU framebuffer。Queue 在 fence 前会 renderer-&gt;sy</text>
+<text x="793.6" y="454" font-family="sans-serif" font-size="13" fill="#5c584e">nchronize()，等所有 batch 做完。</text>
+<rect x="402.8" y="368" width="356.8" height="196" rx="8" fill="#ffffff" stroke="#d9d3c5"/>
+<text x="414.8" y="390" font-family="sans-serif" font-size="12" font-weight="700" fill="#5c584e">应用 · Android 图像导出</text>
+<text x="414.8" y="412" font-family="sans-serif" font-size="15" font-weight="700" fill="#1c1b16">9. 拷到 AHardwareBuffer，交给 BufferQueue</text>
+<text x="414.8" y="436" font-family="sans-serif" font-size="13" fill="#5c584e">vkQueueSignalReleaseImageANDROID → 按行 memcpy 到 AHB</text>
+<text x="414.8" y="454" font-family="sans-serif" font-size="13" fill="#5c584e">（memfd）。然后 queueBuffer 给 SurfaceFlinger。这一步常</text>
+<text x="414.8" y="472" font-family="sans-serif" font-size="13" fill="#5c584e">是 memcpy 热点，不是 Worker 空转。</text>
+<text x="1528.2" y="472.0" text-anchor="middle" font-family="sans-serif" font-size="18" font-weight="700" fill="#5c584e">←</text>
+<text x="1149.4" y="472.0" text-anchor="middle" font-family="sans-serif" font-size="18" font-weight="700" fill="#5c584e">←</text>
+<text x="770.6" y="472.0" text-anchor="middle" font-family="sans-serif" font-size="18" font-weight="700" fill="#5c584e">←</text>
+<text x="581.2" y="582.0" text-anchor="middle" font-family="sans-serif" font-size="18" font-weight="700" fill="#5c584e">↓</text>
+<rect x="402.8" y="588" width="356.8" height="196" rx="8" fill="#f3e8f8" stroke="#ce93d8"/>
+<text x="414.8" y="610" font-family="sans-serif" font-size="12" font-weight="700" fill="#6a1b9a">SurfaceFlinger 主线程</text>
+<text x="414.8" y="632" font-family="sans-serif" font-size="15" font-weight="700" fill="#1c1b16">10. 合成这一屏：各层排在哪</text>
+<text x="414.8" y="656" font-family="sans-serif" font-size="13" fill="#5c584e">读应用刚交来的 buffer，加上状态栏、壁纸等。能走 HWC 直</text>
+<text x="414.8" y="674" font-family="sans-serif" font-size="13" fill="#5c584e">通就少算像素；走 Client 合成就要再画一遍。</text>
+<text x="770.6" y="692.0" text-anchor="middle" font-family="sans-serif" font-size="18" font-weight="700" fill="#5c584e">→</text>
+<rect x="781.6" y="588" width="356.8" height="196" rx="8" fill="#f3e8f8" stroke="#ce93d8"/>
+<text x="793.6" y="610" font-family="sans-serif" font-size="12" font-weight="700" fill="#6a1b9a">SF 的 pastel（另一份 ICD）</text>
+<text x="793.6" y="632" font-family="sans-serif" font-size="15" font-weight="700" fill="#1c1b16">11. SF 自己的 vkQueueSubmit，准备 Routine</text>
+<text x="793.6" y="656" font-family="sans-serif" font-size="13" fill="#5c584e">对应应用侧的 4、5，不是 4→7。Client 合成时 SF 进程另加</text>
+<text x="793.6" y="674" font-family="sans-serif" font-size="13" fill="#5c584e">载一份 vulkan.pastel.so：Queue::submit，Renderer 找或 </text>
+<text x="793.6" y="692" font-family="sans-serif" font-size="13" fill="#5c584e">JIT 合成用的 Routine。ini、ThreadCount 各算各的。这里还</text>
+<text x="793.6" y="710" font-family="sans-serif" font-size="13" fill="#5c584e">没轮到 Worker 算像素。</text>
+<text x="1149.4" y="692.0" text-anchor="middle" font-family="sans-serif" font-size="18" font-weight="700" fill="#5c584e">→</text>
+<rect x="1160.4" y="588" width="356.8" height="196" rx="8" fill="#e3eef9" stroke="#90b4e0"/>
+<text x="1172.4" y="610" font-family="sans-serif" font-size="12" font-weight="700" fill="#1565c0">SF Worker · Thread&lt;NN&gt;</text>
+<text x="1172.4" y="632" font-family="sans-serif" font-size="15" font-weight="700" fill="#1c1b16">12. 采样各层、做片元、写出合成结果</text>
+<text x="1172.4" y="656" font-family="sans-serif" font-size="13" fill="#5c584e">对应应用侧的 6、7：SF 自己那套 Worker 把合成 draw 切成</text>
+<text x="1172.4" y="674" font-family="sans-serif" font-size="13" fill="#5c584e"> batch。Client 合成时这一步经常比应用侧更热：全屏图层、</text>
+<text x="1172.4" y="692" font-family="sans-serif" font-size="13" fill="#5c584e">逐像素采样。</text>
+<text x="1528.2" y="692.0" text-anchor="middle" font-family="sans-serif" font-size="18" font-weight="700" fill="#5c584e">→</text>
+<rect x="1539.2" y="588" width="356.8" height="196" rx="8" fill="#ffffff" stroke="#d9d3c5"/>
+<text x="1551.2" y="610" font-family="sans-serif" font-size="12" font-weight="700" fill="#5c584e">显示 / redroid</text>
+<text x="1551.2" y="632" font-family="sans-serif" font-size="15" font-weight="700" fill="#1c1b16">13. 上屏</text>
+<text x="1551.2" y="656" font-family="sans-serif" font-size="13" fill="#5c584e">合成结果进 framebuffer / 虚拟屏。scrcpy 另走一条编码，</text>
+<text x="1551.2" y="674" font-family="sans-serif" font-size="13" fill="#5c584e">不是这条 pastel Worker。</text>
+<rect x="24" y="768" width="1088" height="278" rx="8" fill="#ffffff" stroke="#d9d3c5"/>
+<text x="40" y="800" font-family="sans-serif" font-size="15" font-weight="700" fill="#1c1b16">系统：应用 Worker ×Na ＋ SF Worker ×Ns，同时跑</text>
+<text x="40" y="818" font-family="monospace" font-size="12" fill="#1c1b16">两套池（两份 vulkan.pastel.so，ThreadCount 各算各的）</text>
+<text x="40" y="833" font-family="monospace" font-size="12" fill="#1c1b16">应用 Queue ──schedule──► 应用 Worker ×Na   画应用像素</text>
+<text x="40" y="848" font-family="monospace" font-size="12" fill="#1c1b16">SF    Queue ──schedule──► SF    Worker ×Ns   画合成</text>
+<text x="40" y="863" font-family="monospace" font-size="12" fill="#1c1b16">每条：有活→干活 | 挡住→切 Fiber | 没活→spin→wait()。同一 4 核上两套 Thread&lt;00&gt;… 正常</text>
+<text x="40" y="882" font-family="sans-serif" font-size="12" fill="#1565c0">应用  W0干活 W1 spin W2 wait … ×Na</text>
+<text x="40" y="898" font-family="sans-serif" font-size="12" fill="#6a1b9a">SF    W0干活 W1 spin W2 spin … ×Ns</text>
+<text x="40" y="922" font-family="sans-serif" font-size="15" font-weight="700" fill="#1c1b16">一块 batch 在 Worker 里怎么跑</text>
+<text x="40" y="942" font-family="monospace" font-size="12" fill="#1c1b16">DrawCall::run → marl::schedule(batch) → processVertices → processPrimitives → processPixels</text>
+<text x="40" y="958" font-family="monospace" font-size="12" fill="#1c1b16">没有活：spinForWork（空转）→ wait() 睡觉</text>
+<text x="40" y="974" font-family="monospace" font-size="12" fill="#1c1b16">有活被挡住：suspend，切纤程（Fiber），同一条 OS 线程继续干别的</text>
+<rect x="1124" y="768" width="772" height="278" rx="8" fill="#ffffff" stroke="#d9d3c5"/>
+<text x="1140" y="800" font-family="sans-serif" font-size="15" font-weight="700" fill="#1c1b16">没活时：spinForWork</text>
+<rect x="1140" y="808" width="740" height="130" rx="4" fill="#fdecea" stroke="#e0b4b4"/>
+<text x="1152" y="826" font-family="monospace" font-size="12" fill="#1c1b16">while (现在 − 开始 &lt; 1ms) {   ← 1ms 是空转上限</text>
+<text x="1152" y="842" font-family="monospace" font-size="12" fill="#1c1b16">    nop × 256     空转，核约 100%</text>
+<text x="1152" y="858" font-family="monospace" font-size="12" fill="#1c1b16">    有活或偷到 → return 去干活</text>
+<text x="1152" y="874" font-family="monospace" font-size="12" fill="#1c1b16">    yield         不睡觉，让核一小下</text>
+<text x="1152" y="890" font-family="monospace" font-size="12" fill="#1c1b16">} → wait() 睡觉   只有超时才走到这</text>
+<rect x="1140" y="944" width="740" height="80" rx="4" fill="#e8f0e4" stroke="#b7c9b0"/>
+<text x="1152" y="964" font-family="sans-serif" font-size="13" font-weight="700" fill="#1c1b16">可优化</text>
+<text x="1152" y="982" font-family="sans-serif" font-size="11" fill="#1c1b16">1. 调 Worker 数：应用 / SF 各写 ThreadCount。默认常变成 16。</text>
+<text x="1152" y="998" font-family="sans-serif" font-size="11" fill="#1c1b16">   UI 密度可应用 2+SF 2；重渲染可应用 4、SF 1。</text>
+<text x="1152" y="1014" font-family="sans-serif" font-size="11" fill="#1c1b16">2. 调 spin 时长：上限现 1ms。改短少空转；改长更好接活。</text>
+<text x="24" y="1026" font-family="sans-serif" font-size="12" font-weight="700" fill="#1c1b16">缩略释义</text>
+<rect x="24.0" y="1030" width="78" height="12" fill="#f3efe4" stroke="#d9d3c5"/>
+<rect x="102.0" y="1030" width="390.0" height="12" fill="#ffffff" stroke="#d9d3c5"/>
+<text x="28.0" y="1040" font-family="sans-serif" font-size="10" font-weight="700" fill="#1c1b16">SF</text>
+<text x="106.0" y="1040" font-family="sans-serif" font-size="10" fill="#5c584e">SurfaceFlinger，系统合成器</text>
+<rect x="492.0" y="1030" width="78" height="12" fill="#f3efe4" stroke="#d9d3c5"/>
+<rect x="570.0" y="1030" width="390.0" height="12" fill="#ffffff" stroke="#d9d3c5"/>
+<text x="496.0" y="1040" font-family="sans-serif" font-size="10" font-weight="700" fill="#1c1b16">ICD</text>
+<text x="574.0" y="1040" font-family="sans-serif" font-size="10" fill="#5c584e">Vulkan 驱动，本图是 vulkan.pastel.so</text>
+<rect x="960.0" y="1030" width="78" height="12" fill="#f3efe4" stroke="#d9d3c5"/>
+<rect x="1038.0" y="1030" width="390.0" height="12" fill="#ffffff" stroke="#d9d3c5"/>
+<text x="964.0" y="1040" font-family="sans-serif" font-size="10" font-weight="700" fill="#1c1b16">HWUI</text>
+<text x="1042.0" y="1040" font-family="sans-serif" font-size="10" fill="#5c584e">Android 画 View 的库</text>
+<rect x="1428.0" y="1030" width="78" height="12" fill="#f3efe4" stroke="#d9d3c5"/>
+<rect x="1506.0" y="1030" width="390.0" height="12" fill="#ffffff" stroke="#d9d3c5"/>
+<text x="1432.0" y="1040" font-family="sans-serif" font-size="10" font-weight="700" fill="#1c1b16">JIT</text>
+<text x="1510.0" y="1040" font-family="sans-serif" font-size="10" fill="#5c584e">现场编译，第一次才编</text>
+<rect x="24.0" y="1042" width="78" height="12" fill="#f3efe4" stroke="#d9d3c5"/>
+<rect x="102.0" y="1042" width="390.0" height="12" fill="#ffffff" stroke="#d9d3c5"/>
+<text x="28.0" y="1052" font-family="sans-serif" font-size="10" font-weight="700" fill="#1c1b16">AHB</text>
+<text x="106.0" y="1052" font-family="sans-serif" font-size="10" fill="#5c584e">AHardwareBuffer，给合成器的图</text>
+<rect x="492.0" y="1042" width="78" height="12" fill="#f3efe4" stroke="#d9d3c5"/>
+<rect x="570.0" y="1042" width="390.0" height="12" fill="#ffffff" stroke="#d9d3c5"/>
+<text x="496.0" y="1052" font-family="sans-serif" font-size="10" font-weight="700" fill="#1c1b16">HWC</text>
+<text x="574.0" y="1052" font-family="sans-serif" font-size="10" fill="#5c584e">硬件合成；能直通就少算</text>
+<rect x="960.0" y="1042" width="78" height="12" fill="#f3efe4" stroke="#d9d3c5"/>
+<rect x="1038.0" y="1042" width="390.0" height="12" fill="#ffffff" stroke="#d9d3c5"/>
+<text x="964.0" y="1052" font-family="sans-serif" font-size="10" font-weight="700" fill="#1c1b16">cwd</text>
+<text x="1042.0" y="1052" font-family="sans-serif" font-size="10" fill="#5c584e">当前工作目录，ini 只认这</text>
+<rect x="1428.0" y="1042" width="78" height="12" fill="#f3efe4" stroke="#d9d3c5"/>
+<rect x="1506.0" y="1042" width="390.0" height="12" fill="#ffffff" stroke="#d9d3c5"/>
+<text x="1432.0" y="1052" font-family="sans-serif" font-size="10" font-weight="700" fill="#1c1b16">GLES</text>
+<text x="1510.0" y="1052" font-family="sans-serif" font-size="10" fill="#5c584e">OpenGL ES，老画图接口</text>
+<rect x="24.0" y="1054" width="78" height="12" fill="#f3efe4" stroke="#d9d3c5"/>
+<rect x="102.0" y="1054" width="390.0" height="12" fill="#ffffff" stroke="#d9d3c5"/>
+<text x="28.0" y="1064" font-family="sans-serif" font-size="10" font-weight="700" fill="#1c1b16">ANGLE</text>
+<text x="106.0" y="1064" font-family="sans-serif" font-size="10" fill="#5c584e">把 GLES 翻译成 Vulkan</text>
+<rect x="492.0" y="1054" width="78" height="12" fill="#f3efe4" stroke="#d9d3c5"/>
+<rect x="570.0" y="1054" width="390.0" height="12" fill="#ffffff" stroke="#d9d3c5"/>
+<text x="496.0" y="1064" font-family="sans-serif" font-size="10" font-weight="700" fill="#1c1b16">Vsync</text>
+<text x="574.0" y="1064" font-family="sans-serif" font-size="10" fill="#5c584e">垂直同步，按帧率叫醒</text>
+<rect x="960.0" y="1054" width="78" height="12" fill="#f3efe4" stroke="#d9d3c5"/>
+<rect x="1038.0" y="1054" width="390.0" height="12" fill="#ffffff" stroke="#d9d3c5"/>
+<text x="964.0" y="1064" font-family="sans-serif" font-size="10" font-weight="700" fill="#1c1b16">Na/Ns</text>
+<text x="1042.0" y="1064" font-family="sans-serif" font-size="10" fill="#5c584e">应用 / SF 各雇几条 Worker</text>
+<rect x="1428.0" y="1054" width="78" height="12" fill="#f3efe4" stroke="#d9d3c5"/>
+<rect x="1506.0" y="1054" width="390.0" height="12" fill="#ffffff" stroke="#d9d3c5"/>
+<text x="1432.0" y="1064" font-family="sans-serif" font-size="10" font-weight="700" fill="#1c1b16">nop</text>
+<text x="1510.0" y="1064" font-family="sans-serif" font-size="10" fill="#5c584e">空指令，占核不算像素</text>
+<rect x="24.0" y="1066" width="78" height="12" fill="#f3efe4" stroke="#d9d3c5"/>
+<rect x="102.0" y="1066" width="390.0" height="12" fill="#ffffff" stroke="#d9d3c5"/>
+<text x="28.0" y="1076" font-family="sans-serif" font-size="10" font-weight="700" fill="#1c1b16">Client</text>
+<text x="106.0" y="1076" font-family="sans-serif" font-size="10" fill="#5c584e">SF 自己再画一遍的合成</text>
+<rect x="492.0" y="1066" width="78" height="12" fill="#f3efe4" stroke="#d9d3c5"/>
+<rect x="570.0" y="1066" width="390.0" height="12" fill="#ffffff" stroke="#d9d3c5"/>
+<text x="496.0" y="1076" font-family="sans-serif" font-size="10" font-weight="700" fill="#1c1b16">ini</text>
+<text x="574.0" y="1076" font-family="sans-serif" font-size="10" fill="#5c584e">SwiftShader.ini 配置文件</text>
+<rect x="960.0" y="1066" width="78" height="12" fill="#f3efe4" stroke="#d9d3c5"/>
+<rect x="1038.0" y="1066" width="390.0" height="12" fill="#ffffff" stroke="#d9d3c5"/>
+<text x="964.0" y="1076" font-family="sans-serif" font-size="10" font-weight="700" fill="#1c1b16">Fiber</text>
+<text x="1042.0" y="1076" font-family="sans-serif" font-size="10" fill="#5c584e">纤程：同一 OS 线程上切</text>
+<rect x="1428.0" y="1066" width="78" height="12" fill="#f3efe4" stroke="#d9d3c5"/>
+<rect x="1506.0" y="1066" width="390.0" height="12" fill="#ffffff" stroke="#d9d3c5"/>
+<text x="1432.0" y="1076" font-family="sans-serif" font-size="10" font-weight="700" fill="#1c1b16">marl</text>
+<text x="1510.0" y="1076" font-family="sans-serif" font-size="10" fill="#5c584e">线程池库，雇 Worker 的</text>
+</svg>

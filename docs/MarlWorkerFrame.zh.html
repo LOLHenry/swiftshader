@@ -31,6 +31,26 @@
     h2 { font-size: 20px; margin: 32px 0 12px; }
     .muted { color: var(--muted); }
     .lead { font-size: 17px; }
+    .widescreen {
+      aspect-ratio: 16 / 9;
+      width: min(100vw - 40px, 1280px);
+      max-width: none;
+      margin: 16px 0 8px;
+      margin-left: 50%;
+      transform: translateX(-50%);
+      position: relative;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      background: #f6f4ef;
+    }
+    .widescreen iframe {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      border: 0;
+    }
     .card {
       background: var(--card);
       border: 1px solid var(--line);
@@ -89,22 +109,93 @@
     .legend .s { background: var(--sf-bg); border-color: #ce93d8; }
     footer { margin-top: 36px; font-size: 13px; color: var(--muted); }
     a { color: #0b57d0; }
+    .spin-loop {
+      margin: 10px 0 0;
+      padding: 8px 10px;
+      background: #fdecea;
+      border: 1px solid #e0b4b4;
+      border-radius: 6px;
+      font: 12px/1.4 ui-monospace, "Cascadia Code", "Courier New", monospace;
+      white-space: pre-wrap;
+      color: #1c1b16;
+    }
+    .spin-cap {
+      margin: 8px 0 0;
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+    .pool-cap { margin: 10px 0 6px; font-size: 13px; }
+    .pool-paths, .pool-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+      margin: 0 0 6px;
+      font-size: 12px;
+    }
+    .pool-paths span, .pool-row span.w {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 4px;
+      border: 1px solid var(--line);
+    }
+    .pool-paths .go, .pool-row .go { background: #e8f0e4; border-color: #2e7d32; }
+    .pool-paths .fiber { background: #f3efe4; }
+    .pool-paths .nop, .pool-row .nop { background: #fdecea; border-color: #c62828; }
+    .pool-row .sleep { background: #eee; }
+    .pool-row .n { font-weight: 700; }
   </style>
 </head>
 <body>
 <main>
   <h1>从应用渲染循环到上屏：Worker 在哪</h1>
-  <p class="muted">redroid guest + <code>vulkan.pastel.so</code> · 秒表 / HWUI 这一路</p>
+  <p class="muted">redroid guest + <code>vulkan.pastel.so</code> · 普通应用走 HWUI / Vulkan 这一路</p>
 
   <div class="card answer">
     <p class="lead">一帧里 Worker 只出现两次：<strong>应用自己的 pastel 线程池</strong>画应用的像素，<strong>SurfaceFlinger 自己的 pastel 线程池</strong>做合成。中间提交命令、排队、拷到 AHardwareBuffer、上屏，都不是 Worker 做的。</p>
   </div>
+
+  <div class="widescreen">
+    <iframe src="MarlWorkerFrame.slide.zh.html" title="16比9：从应用到上屏，内容同本页第一版步骤"></iframe>
+  </div>
+  <p class="muted">上图固定 16:9，文案与下方步骤同一份。单独全屏打开：<a href="MarlWorkerFrame.slide.zh.html">MarlWorkerFrame.slide.zh.html</a></p>
 
   <p class="legend">
     <span class="w">蓝：应用 Worker（Thread&lt;NN&gt;）</span>
     <span class="s">紫：SF Worker（另一份 ICD）</span>
     <span>白：别的线程</span>
   </p>
+
+  <h2>缩略释义</h2>
+  <p class="muted">这张图里出现的缩写，按出现顺序。人话只解释「在这张图里指什么」。</p>
+  <table>
+    <thead>
+      <tr><th>缩写</th><th>人话</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>SF</td><td>SurfaceFlinger，Android 系统合成器。各应用先画自己的图，它再叠成你看见的那一屏。</td></tr>
+      <tr><td>ICD</td><td>Installable Client Driver，可安装的 Vulkan 驱动。这张图里就是 <code>vulkan.pastel.so</code>。应用和 SF 各加载一份。</td></tr>
+      <tr><td>HWUI</td><td>Hardware UI，Android 画 View 的库。应用改界面，真正出绘制命令的是它（再交给 Skia / Vulkan）。</td></tr>
+      <tr><td>JIT</td><td>现场编译：第一次遇到这种画法才把 Routine 编成机器码，之后复用。</td></tr>
+      <tr><td>AHB</td><td>AHardwareBuffer，一块能交给合成器的图。guest 上屏走拷到 AHB，不是桌面的 <code>vkQueuePresentKHR</code>。</td></tr>
+      <tr><td>HWC</td><td>Hardware Composer。能直通（DEVICE）就不用 SF 再画一遍；走不了就 Client 合成，再请 pastel 算像素。</td></tr>
+      <tr><td>cwd</td><td>current working directory，进程当前工作目录。<code>SwiftShader.ini</code> 只从这里读，应用和 SF 各看各的。</td></tr>
+      <tr><td>GLES</td><td>OpenGL ES，老的画图接口。会先经 ANGLE 再进 pastel；Vulkan 则直接进 pastel。</td></tr>
+      <tr><td>ANGLE</td><td>把 GLES 调用翻译成 Vulkan 的库。</td></tr>
+      <tr><td>Vsync</td><td>垂直同步。系统按目标帧率叫醒应用，开始新的一帧。</td></tr>
+      <tr><td>Na / Ns</td><td>应用 / SF 各自雇了几条 Worker。由各自 cwd 里的 <code>ThreadCount</code> 决定，不是绑了几个核。</td></tr>
+      <tr><td>nop</td><td>空指令。spin 时空转：核约 100%，但没算像素。</td></tr>
+      <tr><td>Client</td><td>SF 的「自己再画一遍」合成路径，相对 HWC 直通。</td></tr>
+      <tr><td>ini</td><td><code>SwiftShader.ini</code>。Worker 条数写在 <code>[Processor] ThreadCount</code>。</td></tr>
+      <tr><td>Fiber</td><td>纤程。同一条 OS 线程上切换任务，不是再雇一条线程。</td></tr>
+      <tr><td>marl</td><td>SwiftShader 用的线程池库。名字叫 <code>Thread&lt;NN&gt;</code> 的 Worker 是它雇的。</td></tr>
+      <tr><td>pastel</td><td>SwiftShader 在 Android 上的 Vulkan 实现名，文件是 <code>vulkan.pastel.so</code>。</td></tr>
+      <tr><td>Routine</td><td>JIT 编出来的函数。顶点 / 装配 / 像素各一份，按这次绘制的状态特化。</td></tr>
+      <tr><td>DisplayList</td><td>显示列表：UI 线程记下「这一帧画什么」，还不是像素。</td></tr>
+      <tr><td>ThreadCount</td><td>雇几条 Worker。写 0 或不写 → <code>min(看见的核, 16)</code>，4 核上常变成 16。</td></tr>
+    </tbody>
+  </table>
 
   <h2>一整帧</h2>
   <div class="flow">
@@ -118,14 +209,14 @@
 
     <div class="step">
       <div class="who">应用 UI 线程</div>
-      <div class="title">2. 改界面、记 DisplayList</div>
-      <div class="detail">秒表改数字、invalidate。真正画图不在这条线程，交给 RenderThread。</div>
+      <div class="title">2. 改界面、记显示列表（DisplayList）</div>
+      <div class="detail">应用改 View（文字、布局、可见性），再 invalidate。UI 线程只把「这一帧画什么」记成一份操作清单，还不是像素。真正画图不在这条线程，交给 RenderThread。</div>
     </div>
     <div class="arrow">▼</div>
 
     <div class="step">
       <div class="who">应用 RenderThread + HWUI / Skia</div>
-      <div class="title">3. 把 DisplayList 变成 Vulkan 命令</div>
+      <div class="title">3. 把显示列表变成 Vulkan 命令</div>
       <div class="detail">GLES 会先经 ANGLE 再进 pastel；Vulkan 直接进 pastel。这里是 <code>vkCmdDraw</code> 等，只往命令缓冲里记，几乎不算像素。</div>
     </div>
     <div class="arrow">▼</div>
@@ -147,7 +238,7 @@
     <div class="step worker">
       <div class="who">应用 Worker · marl::schedule</div>
       <div class="title">6. 切成 batch，丢进线程池 —— Worker 从这里开始干活</div>
-      <div class="detail"><code>DrawCall::run</code> 按最多约 128 个图元一块 <code>marl::schedule</code>。哪条 Worker 空谁拿。没有任务图引擎。</div>
+      <div class="detail"><code>DrawCall::run</code> 按最多约 128 个图元一块 <code>marl::schedule</code>。哪条 Worker 空谁拿。</div>
     </div>
     <div class="arrow">▼</div>
 
@@ -188,15 +279,15 @@
 
     <div class="step sf">
       <div class="who">SF 的 pastel（另一份 ICD）</div>
-      <div class="title">11. SF 自己的 vkQueueSubmit</div>
-      <div class="detail">合成 shader 再走一遍 4→7，但是 <strong>SF 进程里另一套 Worker</strong>，ini、ThreadCount 各算各的。</div>
+      <div class="title">11. SF 自己的 vkQueueSubmit，准备 Routine</div>
+      <div class="detail">对应应用侧的 4、5，不是 4→7。Client 合成时 SF 进程另加载一份 <code>vulkan.pastel.so</code>：<code>Queue::submit</code>，Renderer 找或 JIT 合成用的 Routine。ini、ThreadCount 各算各的。这里还没轮到 Worker 算像素。</div>
     </div>
     <div class="arrow">▼</div>
 
     <div class="step worker">
       <div class="who">SF Worker · Thread&lt;NN&gt;</div>
       <div class="title">12. 采样各层、做片元、写出合成结果</div>
-      <div class="detail">秒表场景里 SF 侧 PixelRoutine + bilinear sampler 经常比应用侧更热：全屏图层、逐像素采样。</div>
+      <div class="detail">对应应用侧的 6、7：<strong>SF 自己那套 Worker</strong> 把合成 draw 切成 batch。Client 合成时这一步经常比应用侧更热：全屏图层、逐像素采样。</div>
     </div>
     <div class="arrow">▼</div>
 
@@ -204,6 +295,31 @@
       <div class="who">显示 / redroid</div>
       <div class="title">13. 上屏</div>
       <div class="detail">合成结果进 framebuffer / 虚拟屏。scrcpy 另走一条编码，不是这条 pastel Worker。</div>
+    </div>
+  </div>
+
+  <h2>系统：应用 Worker ×Na ＋ SF Worker ×Ns，同时跑</h2>
+  <div class="card">
+    <pre class="spin-loop" style="background:#f3efe4;border-color:var(--line)">两套池（两份 vulkan.pastel.so，ThreadCount 各算各的）
+应用 Queue ──schedule──► 应用 Worker ×Na   画应用像素
+SF    Queue ──schedule──► SF    Worker ×Ns   画合成
+每条三条路：有活→干活 | 挡住→切 Fiber | 没活→spin→wait()
+同一 4 核上两套 Thread&lt;00&gt;… 是正常的</pre>
+    <div class="pool-row">
+      <span class="w go" style="background:#e3eef9;border-color:#90b4e0;color:#1565c0">应用</span>
+      <span class="w go">W0 干活</span>
+      <span class="w nop">W1 spin</span>
+      <span class="w sleep">W2 wait</span>
+      <span>…</span>
+      <span class="w n">×Na</span>
+    </div>
+    <div class="pool-row">
+      <span class="w" style="background:#f3e8f8;border-color:#ce93d8;color:#6a1b9a;font-weight:700">SF</span>
+      <span class="w go">W0 干活</span>
+      <span class="w nop">W1 spin</span>
+      <span class="w nop">W2 spin</span>
+      <span>…</span>
+      <span class="w n">×Ns</span>
     </div>
   </div>
 
@@ -216,6 +332,22 @@
     processPixels           ← PixelRoutine + sampler，写 vk::Image
 没有活：spinForWork（空转）→ wait() 睡觉
 有活被挡住：suspend，切到另一条纤程（Fiber），同一条 OS 线程继续干别的</pre>
+  </div>
+
+  <h2>没活时：spinForWork</h2>
+  <div class="card">
+    <pre class="spin-loop">while (现在 − 开始 &lt; 1ms) {      ← 1ms 是空转上限（SpinTimeout），不是睡多久
+    nop × 256                     ← 空转，核约 100%，没算像素
+    有活或偷到 → return 去干活    ← 提前跳出 while
+    yield                         ← 不睡觉；把核让给别人一小下，免得空转把能派活的线程饿死
+}                                 ← 1ms 到了才离开 while
+wait() 睡觉                       ← 只有 while 因超时结束才走到这</pre>
+    <p class="spin-cap"><strong>1ms 的作用：</strong>管 while 能转多久。应用池 Na 条、SF 池 Ns 条都可以同时 spin，两套一起空转更容易把 4 核占满，所以要 <code>yield</code> 给派活的人和正在干活的 Worker；超时才 <code>wait()</code> 睡觉。</p>
+    <div class="card answer" style="margin:12px 0 0">
+      <p class="lead" style="margin:0 0 6px">可优化</p>
+      <p style="margin:0 0 6px"><strong>1. 调 Worker 数：</strong>应用 / SF 各写各的 <code>SwiftShader.ini</code> <code>ThreadCount</code>（看各自进程 cwd）。默认 0 → min(看见的核, 16)，4 核上常变成 16。UI 密度可应用 2 + SF 2；重渲染可应用 4、SF 1。</p>
+      <p style="margin:0"><strong>2. 调 spin 时长：</strong>while 上限现写死 1ms。改短（如 100µs）少空转；改长更容易马上接下一块，但空转更久。</p>
+    </div>
   </div>
 
   <h2>谁在干活（别把线程认错）</h2>
@@ -239,7 +371,7 @@
     应用侧：<code>VkQueue.cpp</code> 的 <code>submit</code> / <code>taskLoop</code>，<code>Renderer.cpp</code> 的 <code>draw</code> / <code>DrawCall::run</code>。<br>
     上屏：<code>vkQueueSignalReleaseImageANDROID</code> → AHB，不是桌面的 <code>vkQueuePresentKHR</code>。<br>
     Worker 条数：<a href="MarlWorker.zh.html">Worker 是什么，绑核后条数谁说了算</a>。
-    一页幻灯片：<a href="MarlWorkerFrame.pptx">MarlWorkerFrame.pptx</a>
+    16:9 一屏：<a href="MarlWorkerFrame.slide.zh.html">MarlWorkerFrame.slide.zh.html</a>
   </footer>
 </main>
 </body>
